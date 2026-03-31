@@ -1,0 +1,76 @@
+{% extends "admin/admin_base.html" %}
+
+{% block admin_content %}
+<h2>全局提交记录</h2>
+
+<div style="margin-bottom: 20px;">
+    <form method="GET" style="display: inline;">
+        <input type="text" name="q" placeholder="搜索..." value="" style="padding: 8px; border-radius: 4px;">
+        <button type="submit" class="btn btn-primary">搜索</button>
+    </form>
+</div>
+
+{% if submissions %}
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>用户</th>
+            <th>题目</th>
+            <th>竞赛</th>
+            <th>语言</th>
+            <th>状态</th>
+            <th>用时</th>
+            <th>内存</th>
+            <th>提交时间</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for s in submissions %}
+        <tr>
+            <td>#{{ s.id }}</td>
+            <td>{{ s.author.username }}</td>
+            <td>{{ s.problem.title }}</td>
+            <td>{% if s.contest %}{{ s.contest.title }}{% else %}-{% endif %}</td>
+            <td>{{ s.language }}</td>
+            <td>
+                {% if s.status == 'AC' %}
+                    <span class="badge success">{{ s.status }}</span>
+                {% elif s.status in ['WA', 'RE', 'CE'] %}
+                    <span class="badge error">{{ s.status }}</span>
+                {% elif s.status in ['TLE', 'MLE'] %}
+                    <span class="badge warning">{{ s.status }}</span>
+                {% else %}
+                    <span class="badge info">{{ s.status }}</span>
+                {% endif %}
+            </td>
+            <td>{{ s.time_used or '-' }}ms</td>
+            <td>{{ s.memory_used or '-' }}KB</td>
+            <td>{{ s.submitted_at.strftime('%m-%d %H:%M') }}</td>
+            <td>
+                <form method="POST" action="{{ url_for('admin.rejudge_submission', submission_id=s.id) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-primary btn-small">重判</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- 分页 -->
+{% if paginated.pages > 1 %}
+<div style="margin-top: 20px; text-align: center;">
+    {% if paginated.has_prev %}
+        <a href="{{ url_for('admin.submissions_list', page=paginated.prev_num) }}" class="btn btn-primary">上一页</a>
+    {% endif %}
+    <span style="margin: 0 10px; color: var(--text-muted);">第 {{ paginated.page }} / {{ paginated.pages }} 页</span>
+    {% if paginated.has_next %}
+        <a href="{{ url_for('admin.submissions_list', page=paginated.next_num) }}" class="btn btn-primary">下一页</a>
+    {% endif %}
+</div>
+{% endif %}
+{% else %}
+<p style="color: var(--text-muted);">暂无提交</p>
+{% endif %}
+{% endblock %}

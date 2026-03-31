@@ -1,0 +1,88 @@
+{
+  "submission_id": 118,
+  "final_status": "AC",
+  "error": "",
+  "cases": [
+    {
+      "case": 1,
+      "status": "OK",
+      "time_ms": 16,
+      "memory_kb": 4232,
+      "error": "",
+      "output_sample": "18\n"
+    },
+    {
+      "case": 2,
+      "status": "OK",
+      "time_ms": 31,
+      "memory_kb": 4240,
+      "error": "",
+      "output_sample": "36\n"
+    },
+    {
+      "case": 3,
+      "status": "OK",
+      "time_ms": 32,
+      "memory_kb": 4232,
+      "error": "",
+      "output_sample": "54\n"
+    },
+    {
+      "case": 4,
+      "status": "OK",
+      "time_ms": 15,
+      "memory_kb": 4236,
+      "error": "",
+      "output_sample": "72\n"
+    },
+    {
+      "case": 5,
+      "status": "OK",
+      "time_ms": 30,
+      "memory_kb": 4228,
+      "error": "",
+      "output_sample": "90\n"
+    },
+    {
+      "case": 6,
+      "status": "OK",
+      "time_ms": 32,
+      "memory_kb": 4228,
+      "error": "",
+      "output_sample": "108\n"
+    },
+    {
+      "case": 7,
+      "status": "OK",
+      "time_ms": 15,
+      "memory_kb": 4260,
+      "error": "",
+      "output_sample": "126\n"
+    },
+    {
+      "case": 8,
+      "status": "OK",
+      "time_ms": 32,
+      "memory_kb": 4248,
+      "error": "",
+      "output_sample": "144\n"
+    },
+    {
+      "case": 9,
+      "status": "OK",
+      "time_ms": 31,
+      "memory_kb": 4232,
+      "error": "",
+      "output_sample": "162\n"
+    },
+    {
+      "case": 10,
+      "status": "OK",
+      "time_ms": 14,
+      "memory_kb": 4232,
+      "error": "",
+      "output_sample": "180\n"
+    }
+  ],
+  "generated_at": "2026-03-31T12:25:15.767266Z"
+}

@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block title %}Contests - OJ System{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>Contests</h2>
+    <form method="GET" style="margin: 16px 0; display: flex; gap: 10px;">
+        <input type="text" name="q" placeholder="Search contest" value="{{ q }}" style="flex: 1;">
+        <button class="btn btn-primary" type="submit">Search</button>
+    </form>
+    {% if contests %}
+    <table>
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Status</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Participants</th>
+                <th>Access</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for contest in contests %}
+            <tr style="{% if contest.status == 'Running' %}background: rgba(56, 214, 138, 0.12);{% endif %}">
+                <td><a href="{{ url_for('web.contest_detail', contest_id=contest.id) }}">{{ contest.title }}</a></td>
+                <td>{{ contest.status }}</td>
+                <td>{{ contest.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>{{ contest.end_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>{{ contest.participant_count }}</td>
+                <td>{{ 'Public' if contest.is_public else 'Private' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--text-muted); margin-top: 12px;">No contests available.</p>
+    {% endif %}
+
+    {% if paginated.pages > 1 %}
+    <div class="pagination">
+        {% if paginated.has_prev %}
+            <a href="{{ url_for('web.contest_list', page=paginated.prev_num, q=q) }}">Prev</a>
+        {% endif %}
+        {% for p in range(1, paginated.pages + 1) %}
+            {% if p == paginated.page %}
+                <span class="current">{{ p }}</span>
+            {% else %}
+                <a href="{{ url_for('web.contest_list', page=p, q=q) }}">{{ p }}</a>
+            {% endif %}
+        {% endfor %}
+        {% if paginated.has_next %}
+            <a href="{{ url_for('web.contest_list', page=paginated.next_num, q=q) }}">Next</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

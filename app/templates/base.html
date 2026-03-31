@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}OJ System{% endblock %}</title>
+    <style>
+        :root {
+            color-scheme: light dark;
+            --bg: #f4f2ee;
+            --bg-accent: #e7e3dc;
+            --surface: #ffffff;
+            --surface-2: #f1ede6;
+            --text: #1b1c1f;
+            --text-muted: #5f6064;
+            --border: #d9d3c9;
+            --brand: #0d728c;
+            --brand-strong: #0a5a6e;
+            --danger: #b34134;
+            --danger-strong: #8f2f25;
+            --success: #217a4c;
+            --warn: #d07a19;
+            --info: #2a6fb5;
+            --pre-bg: #f0ebe2;
+            --nav-bg: linear-gradient(135deg, #0f7b8f 0%, #0c5668 100%);
+        }
+        [data-theme="dark"] {
+            color-scheme: dark;
+            --bg: #0e1217;
+            --bg-accent: #141b22;
+            --surface: #161f2a;
+            --surface-2: #1c2733;
+            --text: #e6eef6;
+            --text-muted: #9aa6b2;
+            --border: #273240;
+            --brand: #ff6b6b;
+            --brand-strong: #e25454;
+            --danger: #ff5c70;
+            --danger-strong: #d94c5c;
+            --success: #38d68a;
+            --warn: #f6b44b;
+            --info: #6db7ff;
+            --pre-bg: #0b1016;
+            --nav-bg: linear-gradient(135deg, #1a2540 0%, #0d1826 100%);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: radial-gradient(circle at top, var(--bg-accent), var(--bg)); color: var(--text); font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
+        a { color: var(--brand); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        nav { background: var(--nav-bg); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15); }
+        nav .logo { font-size: 1.3rem; font-weight: bold; color: #fff; }
+        nav .nav-links { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        nav .nav-links a { margin-left: 0; color: #f1f5f9; }
+        nav .nav-links a:hover { color: #ffffff; }
+        .theme-toggle { background: rgba(255, 255, 255, 0.15); color: #fff; border: 1px solid rgba(255, 255, 255, 0.25); padding: 6px 10px; border-radius: 999px; cursor: pointer; font-size: 0.9rem; line-height: 1; display: inline-flex; align-items: center; justify-content: center; min-width: 36px; }
+        .theme-toggle:hover { background: rgba(255, 255, 255, 0.25); }
+        .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+        .card { background: var(--surface); border-radius: 10px; padding: 24px; margin-bottom: 20px; border: 1px solid var(--border); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08); }
+        .flash-messages { margin-bottom: 16px; }
+        .flash { padding: 10px 16px; border-radius: 6px; margin-bottom: 8px; }
+        .flash.success { background: rgba(33, 122, 76, 0.15); border-left: 4px solid var(--success); color: var(--success); }
+        .flash.error { background: rgba(179, 65, 52, 0.15); border-left: 4px solid var(--danger); color: var(--danger); }
+        .btn { display: inline-block; padding: 8px 18px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.95rem; }
+        .btn-primary { background: var(--brand); color: #fff; }
+        .btn-primary:hover { background: var(--brand-strong); }
+        .btn-secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: var(--bg-accent); }
+        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-danger:hover { background: var(--danger-strong); }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { background: var(--surface-2); color: var(--brand); }
+        tr:hover { background: var(--bg-accent); }
+        input, textarea, select { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; width: 100%; font-size: 0.95rem; }
+        input:focus, textarea:focus, select:focus { outline: 2px solid var(--brand); }
+        label { display: block; margin-bottom: 4px; color: var(--text-muted); font-size: 0.9rem; }
+        .form-group { margin-bottom: 16px; }
+        .pagination { margin-top: 16px; }
+        .pagination a, .pagination span { display: inline-block; padding: 4px 10px; margin: 2px; border-radius: 4px; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+        .pagination .current { background: var(--brand); color: #fff; }
+        .status-AC { color: var(--success); font-weight: bold; }
+        .status-WA { color: #d75a4a; font-weight: bold; }
+        .status-TLE { color: var(--warn); font-weight: bold; }
+        .status-MLE { color: #c7771a; font-weight: bold; }
+        .status-RE { color: #a26be2; font-weight: bold; }
+        .status-CE { color: var(--info); font-weight: bold; }
+        .status-Pending, .status-Queued, .status-Judging { color: var(--text-muted); }
+        .status-Failed { color: #7f8c8d; }
+        .diff-easy { color: var(--success); }
+        .diff-medium { color: var(--warn); }
+        .diff-hard { color: #d75a4a; }
+        pre { background: var(--pre-bg); padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Consolas', monospace; color: var(--text); white-space: pre-wrap; word-break: break-word; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
+        .stat-card { background: var(--surface-2); border-radius: 8px; padding: 16px; text-align: center; border: 1px solid var(--border); }
+        .stat-card .value { font-size: 2rem; font-weight: bold; color: var(--brand); }
+        .stat-card .label { font-size: 0.9rem; color: var(--text-muted); margin-top: 4px; }
+        @media (max-width: 640px) {
+            nav { flex-direction: column; gap: 8px; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+<nav>
+    <div class="logo">🖥 OJ System</div>
+    <div class="nav-links">
+        <a href="/">Problems</a>
+        <a href="/contests">Contests</a>
+        {% if current_user.is_authenticated %}
+            <a href="/submissions">My Submissions</a>
+            {% if current_user.is_admin %}
+                <a href="/admin/contests">Contests</a>
+                <a href="/admin/dashboard">Admin</a>
+            {% endif %}
+            <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle theme">
+                <span id="themeIcon" aria-hidden="true">🌙</span>
+            </button>
+            <span style="color:#aaa; margin-left:12px;">{{ current_user.username }}</span>
+            <a href="/logout" style="margin-left:12px;">Logout</a>
+        {% else %}
+            <a href="/login">Login</a>
+            <a href="/register">Register</a>
+        {% endif %}
+    </div>
+</nav>
+<div class="container">
+    {% with messages = get_flashed_messages(with_categories=True) %}
+    {% if messages %}
+    <div class="flash-messages">
+        {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+</div>
+<script>
+    (function () {
+        const root = document.documentElement;
+        const toggle = document.getElementById('themeToggle');
+        const icon = document.getElementById('themeIcon');
+        const storageKey = 'oj-theme';
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+        const applyTheme = (theme) => {
+            root.setAttribute('data-theme', theme);
+            if (icon) {
+                icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+            }
+        };
+
+        const stored = localStorage.getItem(storageKey);
+        const initial = stored || (prefersDark ? 'dark' : 'light');
+        applyTheme(initial);
+
+        if (toggle) {
+            toggle.addEventListener('click', () => {
+                const current = root.getAttribute('data-theme') || 'light';
+                const next = current === 'dark' ? 'light' : 'dark';
+                localStorage.setItem(storageKey, next);
+                applyTheme(next);
+            });
+        }
+    })();
+</script>
+</body>
+</html>

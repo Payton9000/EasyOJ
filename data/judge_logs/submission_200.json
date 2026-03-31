@@ -1,0 +1,248 @@
+{
+  "submission_id": 200,
+  "final_status": "AC",
+  "error": "",
+  "cases": [
+    {
+      "case": 1,
+      "status": "OK",
+      "time_ms": 46,
+      "memory_kb": 38232,
+      "error": "",
+      "output_sample": "55"
+    },
+    {
+      "case": 2,
+      "status": "OK",
+      "time_ms": 47,
+      "memory_kb": 38052,
+      "error": "",
+      "output_sample": "65"
+    },
+    {
+      "case": 3,
+      "status": "OK",
+      "time_ms": 62,
+      "memory_kb": 38212,
+      "error": "",
+      "output_sample": "75"
+    },
+    {
+      "case": 4,
+      "status": "OK",
+      "time_ms": 47,
+      "memory_kb": 38268,
+      "error": "",
+      "output_sample": "85"
+    },
+    {
+      "case": 5,
+      "status": "OK",
+      "time_ms": 62,
+      "memory_kb": 38140,
+      "error": "",
+      "output_sample": "95"
+    },
+    {
+      "case": 6,
+      "status": "OK",
+      "time_ms": 47,
+      "memory_kb": 36776,
+      "error": "",
+      "output_sample": "105"
+    },
+    {
+      "case": 7,
+      "status": "OK",
+      "time_ms": 46,
+      "memory_kb": 36656,
+      "error": "",
+      "output_sample": "115"
+    },
+    {
+      "case": 8,
+      "status": "OK",
+      "time_ms": 47,
+      "memory_kb": 38480,
+      "error": "",
+      "output_sample": "125"
+    },
+    {
+      "case": 9,
+      "status": "OK",
+      "time_ms": 45,
+      "memory_kb": 37760,
+      "error": "",
+      "output_sample": "135"
+    },
+    {
+      "case": 10,
+      "status": "OK",
+      "time_ms": 47,
+      "memory_kb": 38536,
+      "error": "",
+      "output_sample": "145"
+    },
+    {
+      "case": 11,
+      "status": "OK",
+      "time_ms": 47,
+      "memory_kb": 35980,
+      "error": "",
+      "output_sample": "155"
+    },
+    {
+      "case": 12,
+      "status": "OK",
+      "time_ms": 47,
+      "memory_kb": 37912,
+      "error": "",
+      "output_sample": "165"
+    },
+    {
+      "case": 13,
+      "status": "OK",
+      "time_ms": 63,
+      "memory_kb": 37976,
+      "error": "",
+      "output_sample": "175"
+    },
+    {
+      "case": 14,
+      "status": "OK",
+      "time_ms": 47,
+      "memory_kb": 38068,
+      "error": "",
+      "output_sample": "185"
+    },
+    {
+      "case": 15,
+      "status": "OK",
+      "time_ms": 63,
+      "memory_kb": 37012,
+      "error": "",
+      "output_sample": "195"
+    },
+    {
+      "case": 16,
+      "status": "OK",
+      "time_ms": 61,
+      "memory_kb": 38156,
+      "error": "",
+      "output_sample": "205"
+    },
+    {
+      "case": 17,
+      "status": "OK",
+      "time_ms": 63,
+      "memory_kb": 37800,
+      "error": "",
+      "output_sample": "215"
+    },
+    {
+      "case": 18,
+      "status": "OK",
+      "time_ms": 61,
+      "memory_kb": 39144,
+      "error": "",
+      "output_sample": "225"
+    },
+    {
+      "case": 19,
+      "status": "OK",
+      "time_ms": 63,
+      "memory_kb": 37772,
+      "error": "",
+      "output_sample": "235"
+    },
+    {
+      "case": 20,
+      "status": "OK",
+      "time_ms": 61,
+      "memory_kb": 37844,
+      "error": "",
+      "output_sample": "245"
+    },
+    {
+      "case": 21,
+      "status": "OK",
+      "time_ms": 63,
+      "memory_kb": 37944,
+      "error": "",
+      "output_sample": "255"
+    },
+    {
+      "case": 22,
+      "status": "OK",
+      "time_ms": 46,
+      "memory_kb": 38480,
+      "error": "",
+      "output_sample": "265"
+    },
+    {
+      "case": 23,
+      "status": "OK",
+      "time_ms": 47,
+      "memory_kb": 39112,
+      "error": "",
+      "output_sample": "275"
+    },
+    {
+      "case": 24,
+      "status": "OK",
+      "time_ms": 46,
+      "memory_kb": 38020,
+      "error": "",
+      "output_sample": "285"
+    },
+    {
+      "case": 25,
+      "status": "OK",
+      "time_ms": 62,
+      "memory_kb": 38268,
+      "error": "",
+      "output_sample": "295"
+    },
+    {
+      "case": 26,
+      "status": "OK",
+      "time_ms": 62,
+      "memory_kb": 38348,
+      "error": "",
+      "output_sample": "305"
+    },
+    {
+      "case": 27,
+      "status": "OK",
+      "time_ms": 32,
+      "memory_kb": 37296,
+      "error": "",
+      "output_sample": "315"
+    },
+    {
+      "case": 28,
+      "status": "OK",
+      "time_ms": 46,
+      "memory_kb": 37176,
+      "error": "",
+      "output_sample": "325"
+    },
+    {
+      "case": 29,
+      "status": "OK",
+      "time_ms": 63,
+      "memory_kb": 38204,
+      "error": "",
+      "output_sample": "335"
+    },
+    {
+      "case": 30,
+      "status": "OK",
+      "time_ms": 61,
+      "memory_kb": 37728,
+      "error": "",
+      "output_sample": "345"
+    }
+  ],
+  "generated_at": "2026-03-31T12:27:15.644991Z"
+}

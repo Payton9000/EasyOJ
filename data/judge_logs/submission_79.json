@@ -1,0 +1,24 @@
+{
+  "submission_id": 79,
+  "final_status": "AC",
+  "error": "",
+  "cases": [
+    {
+      "case": 1,
+      "status": "OK",
+      "time_ms": 16,
+      "memory_kb": 2308,
+      "error": "",
+      "output_sample": "3"
+    },
+    {
+      "case": 2,
+      "status": "OK",
+      "time_ms": 0,
+      "memory_kb": 2192,
+      "error": "",
+      "output_sample": "30"
+    }
+  ],
+  "generated_at": "2026-03-31T12:03:51.052392Z"
+}

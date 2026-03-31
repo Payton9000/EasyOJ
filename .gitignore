@@ -1,0 +1,32 @@
+# Python cache and virtual env
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+.pytest_cache/
+
+# Environment and local settings
+.env
+*.log
+
+# Runtime data
+/data/database.db
+/data/temp/
+/data/submissions/
+/data/manual_ui_runs/
+
+# Generated test artifacts
+/tests/reports/
+/tests/soak_summary.json
+/tests/data/soak_test.db
+
+# Toolchains and deploy temp
+/toolchain/
+/.deploy_tmp/
+/OJ_System/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/

@@ -1,0 +1,16 @@
+{
+  "submission_id": 35,
+  "final_status": "TLE",
+  "error": "",
+  "cases": [
+    {
+      "case": 1,
+      "status": "TLE",
+      "time_ms": 827,
+      "memory_kb": 37364,
+      "error": "",
+      "output_sample": ""
+    }
+  ],
+  "generated_at": "2026-03-31T12:03:04.571194Z"
+}

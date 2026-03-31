@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ problem.title }} - OJ System{% endblock %}
+{% block content %}
+<div class="card">
+    <h2 style="color:#e94560;">{{ problem.title }}</h2>
+    <div style="display:flex; gap:24px; margin:12px 0 20px; color:#aaa; font-size:0.9rem;">
+        <span>⏱ Time Limit: <strong style="color:#eee;">{{ problem.time_limit }}ms</strong></span>
+        <span>💾 Memory Limit: <strong style="color:#eee;">{{ problem.memory_limit }}MB</strong></span>
+        <span>📊 Difficulty: <strong class="diff-{{ problem.difficulty }}">{{ problem.difficulty | capitalize }}</strong></span>
+        {% if problem.source %}
+        <span>📁 Source: <strong style="color:#eee;">{{ problem.source }}</strong></span>
+        {% endif %}
+    </div>
+    <h3 style="color:#aaa; margin-bottom:8px;">Description</h3>
+    <div style="line-height:1.7; margin-bottom:16px;">{{ problem.description | safe }}</div>
+    {% if problem.input_description %}
+    <h3 style="color:#aaa; margin-bottom:8px;">Input</h3>
+    <div style="line-height:1.7; margin-bottom:16px;">{{ problem.input_description | safe }}</div>
+    {% endif %}
+    {% if problem.output_description %}
+    <h3 style="color:#aaa; margin-bottom:8px;">Output</h3>
+    <div style="line-height:1.7; margin-bottom:16px;">{{ problem.output_description | safe }}</div>
+    {% endif %}
+    {% if problem.sample_input %}
+    <h3 style="color:#aaa; margin-bottom:8px;">Sample Input</h3>
+    <pre>{{ problem.sample_input }}</pre>
+    {% endif %}
+    {% if problem.sample_output %}
+    <h3 style="color:#aaa; margin:16px 0 8px;">Sample Output</h3>
+    <pre>{{ problem.sample_output }}</pre>
+    {% endif %}
+    <div style="margin-top:24px;">
+        {% if current_user.is_authenticated %}
+        <a href="/problem/{{ problem.id }}/submit" class="btn btn-primary">Submit Code</a>
+        {% else %}
+        <a href="/login" class="btn btn-secondary">Login to Submit</a>
+        {% endif %}
+        <a href="/" class="btn btn-secondary" style="margin-left:8px;">Back to Problems</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,90 @@
+{% extends "admin/admin_base.html" %}
+
+{% block admin_content %}
+<h2>题目管理</h2>
+
+<div style="margin-bottom: 20px;">
+    <a href="{{ url_for('admin.create_problem') }}" class="btn btn-primary">+ 创建题目</a>
+    
+    <form method="GET" style="display: inline; margin-left: 10px;">
+        <input type="text" name="q" placeholder="搜索题目..." value="{{ q }}" style="padding: 8px; border-radius: 4px;">
+        
+        <select name="difficulty" style="padding: 8px; border-radius: 4px;">
+            <option value="">所有难度</option>
+            <option value="easy" {% if difficulty=='easy' %}selected{% endif %}>简单</option>
+            <option value="medium" {% if difficulty=='medium' %}selected{% endif %}>中等</option>
+            <option value="hard" {% if difficulty=='hard' %}selected{% endif %}>困难</option>
+        </select>
+        
+        <button type="submit" class="btn btn-primary">搜索</button>
+    </form>
+</div>
+
+{% if problems %}
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>标题</th>
+            <th>难度</th>
+            <th>时间</th>
+            <th>内存</th>
+            <th>公开</th>
+            <th>测试用例</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in problems %}
+        <tr>
+            <td>#{{ p.id }}</td>
+            <td><strong>{{ p.title }}</strong></td>
+            <td>
+                {% if p.difficulty == 'easy' %}
+                    <span class="badge success">简单</span>
+                {% elif p.difficulty == 'medium' %}
+                    <span class="badge warning">中等</span>
+                {% else %}
+                    <span class="badge error">困难</span>
+                {% endif %}
+            </td>
+            <td>{{ p.time_limit }}ms</td>
+            <td>{{ p.memory_limit }}MB</td>
+            <td>
+                <form method="POST" action="{{ url_for('admin.toggle_problem_public', problem_id=p.id) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-small" style="{% if p.is_public %}background-color: var(--success);{% else %}background-color: var(--text-muted);{% endif %} color: #fff; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer;">
+                        {% if p.is_public %}公开{% else %}隐藏{% endif %}
+                    </button>
+                </form>
+            </td>
+            <td>
+                <a href="{{ url_for('admin.problem_testcases', problem_id=p.id) }}" class="btn btn-primary btn-small">{{ p.test_case_count }}</a>
+            </td>
+            <td>
+                <a href="{{ url_for('admin.edit_problem', problem_id=p.id) }}" class="btn btn-primary btn-small">编辑</a>
+                <form method="POST" action="{{ url_for('admin.delete_problem', problem_id=p.id) }}" style="display: inline;">
+                    <input type="hidden" name="confirmation" id="conf-{{ p.id }}" value="">
+                    <button type="button" class="btn btn-danger btn-small" onclick="if(prompt('输入题目标题以确认删除：') === '{{ p.title }}') { document.getElementById('conf-{{ p.id }}').value = '{{ p.title }}'; this.form.submit(); }">删除</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- 分页 -->
+{% if paginated.pages > 1 %}
+<div style="margin-top: 20px; text-align: center;">
+    {% if paginated.has_prev %}
+        <a href="{{ url_for('admin.problems_list', page=paginated.prev_num, q=q, difficulty=difficulty) }}" class="btn btn-primary">上一页</a>
+    {% endif %}
+    <span style="margin: 0 10px; color: var(--text-muted);">第 {{ paginated.page }} / {{ paginated.pages }} 页</span>
+    {% if paginated.has_next %}
+        <a href="{{ url_for('admin.problems_list', page=paginated.next_num, q=q, difficulty=difficulty) }}" class="btn btn-primary">下一页</a>
+    {% endif %}
+</div>
+{% endif %}
+{% else %}
+<p style="color: var(--text-muted);">暂无题目</p>
+{% endif %}
+{% endblock %}

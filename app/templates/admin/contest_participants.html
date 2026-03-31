@@ -1,0 +1,62 @@
+{% extends "admin/admin_base.html" %}
+
+{% block admin_content %}
+<h2>{{ contest.title }} - 参赛者管理</h2>
+
+<div style="background-color: var(--surface); padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid var(--border);">
+    <h3>添加参赛者</h3>
+    <p style="color: var(--text-muted); margin: 10px 0;">当前参赛人数：{{ contest.participant_count }}{% if contest.max_participants > 0 %}/{{ contest.max_participants }}{% endif %}</p>
+    
+    <form method="POST" action="{{ url_for('admin.add_participant', contest_id=contest.id) }}" style="display: flex; gap: 10px; margin-top: 10px;">
+        <input type="text" name="username" placeholder="输入用户名" style="flex: 1; padding: 8px; border-radius: 4px;">
+        <button type="submit" class="btn btn-primary">添加</button>
+    </form>
+</div>
+
+<h3>参赛者列表 ({{ participants|length }})</h3>
+{% if participants %}
+<table>
+    <thead>
+        <tr>
+            <th>用户名</th>
+            <th>邮箱</th>
+            <th>加入时间</th>
+            <th>状态</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in participants %}
+        <tr>
+            <td><strong>{{ p.user.username }}</strong></td>
+            <td>{{ p.user.email }}</td>
+            <td>{{ p.joined_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>
+                {% if p.is_disqualified %}
+                    <span class="badge error">已取消资格</span>
+                {% else %}
+                    <span class="badge success">正常</span>
+                {% endif %}
+            </td>
+            <td>
+                <form method="POST" action="{{ url_for('admin.disqualify_participant', contest_id=contest.id, user_id=p.user_id) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-primary btn-small">
+                        {% if p.is_disqualified %}恢复资格{% else %}取消资格{% endif %}
+                    </button>
+                </form>
+                <form method="POST" action="{{ url_for('admin.remove_participant', contest_id=contest.id, user_id=p.user_id) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-danger btn-small" onclick="return confirm('确定移除该参赛者？')">移除</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p style="color: var(--text-muted);">暂无参赛者</p>
+{% endif %}
+
+<div style="margin-top: 20px;">
+    <a href="{{ url_for('admin.contests_list') }}" class="btn btn-primary">返回竞赛列表</a>
+</div>
+{% endblock %}

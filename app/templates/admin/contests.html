@@ -1,0 +1,77 @@
+{% extends "admin/admin_base.html" %}
+
+{% block admin_content %}
+<h2>竞赛管理</h2>
+
+<div style="margin-bottom: 20px;">
+    <a href="{{ url_for('admin.create_contest') }}" class="btn btn-primary">+ 创建竞赛</a>
+    
+    <form method="GET" style="display: inline; margin-left: 10px;">
+        <input type="text" name="q" placeholder="搜索竞赛..." value="{{ q }}" style="padding: 8px;">
+        <button type="submit" class="btn btn-primary">搜索</button>
+    </form>
+</div>
+
+{% if contests %}
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>标题</th>
+            <th>状态</th>
+            <th>开始时间</th>
+            <th>结束时间</th>
+            <th>参赛人数</th>
+            <th>题目数</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for contest in contests %}
+        <tr>
+            <td>#{{ contest.id }}</td>
+            <td><strong>{{ contest.title }}</strong></td>
+            <td>
+                {% if contest.status == 'Pending' %}
+                    <span class="badge info">待进行</span>
+                {% elif contest.status == 'Running' %}
+                    <span class="badge success">进行中</span>
+                {% else %}
+                    <span class="badge warning">已结束</span>
+                {% endif %}
+            </td>
+            <td>{{ contest.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>{{ contest.end_time.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>{{ contest.participant_count }}{% if contest.max_participants > 0 %}/{{ contest.max_participants }}{% endif %}</td>
+            <td>{{ contest.problems|length }}</td>
+            <td>
+                <a href="{{ url_for('admin.edit_contest', contest_id=contest.id) }}" class="btn btn-primary btn-small">编辑</a>
+                <a href="{{ url_for('admin.contest_problems', contest_id=contest.id) }}" class="btn btn-primary btn-small">题目</a>
+                <a href="{{ url_for('admin.contest_participants', contest_id=contest.id) }}" class="btn btn-primary btn-small">参赛者</a>
+                <a href="{{ url_for('admin.contest_ranklist', contest_id=contest.id) }}" class="btn btn-primary btn-small">排行榜</a>
+                <form method="POST" action="{{ url_for('admin.delete_contest', contest_id=contest.id) }}" style="display: inline;">
+                    <input type="hidden" name="confirmation" id="conf-{{ contest.id }}" value="">
+                    <button type="button" class="btn btn-danger btn-small" onclick="if(prompt('输入竞赛标题以确认删除：') === '{{ contest.title }}') { document.getElementById('conf-{{ contest.id }}').value = '{{ contest.title }}'; this.form.submit(); }">删除</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- 分页 -->
+{% if paginated.pages > 1 %}
+<div style="margin-top: 20px; text-align: center;">
+    {% if paginated.has_prev %}
+        <a href="{{ url_for('admin.contests_list', page=paginated.prev_num, q=q) }}" class="btn btn-primary">上一页</a>
+    {% endif %}
+    <span style="margin: 0 10px; color: var(--text-muted);">第 {{ paginated.page }} / {{ paginated.pages }} 页</span>
+    {% if paginated.has_next %}
+        <a href="{{ url_for('admin.contests_list', page=paginated.next_num, q=q) }}" class="btn btn-primary">下一页</a>
+    {% endif %}
+</div>
+{% endif %}
+{% else %}
+<p style="color: var(--text-muted);">暂无竞赛</p>
+{% endif %}
+{% endblock %}

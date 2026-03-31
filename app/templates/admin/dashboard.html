@@ -1,0 +1,85 @@
+{% extends "admin/admin_base.html" %}
+
+{% block admin_content %}
+<h2>仪表盘</h2>
+
+<div class="stats-grid">
+    <div class="stat-card user">
+        <div class="stat-value">{{ user_count }}</div>
+        <div class="stat-label">用户总数</div>
+    </div>
+    <div class="stat-card problem">
+        <div class="stat-value">{{ problem_count }}</div>
+        <div class="stat-label">题目总数</div>
+    </div>
+    <div class="stat-card submission">
+        <div class="stat-value">{{ submission_count }}</div>
+        <div class="stat-label">提交总数</div>
+    </div>
+    <div class="stat-card ac">
+        <div class="stat-value">{{ ac_count }}</div>
+        <div class="stat-label">AC提交</div>
+    </div>
+    <div class="stat-card contest">
+        <div class="stat-value">{{ contest_count }}</div>
+        <div class="stat-label">竞赛总数</div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+    <div class="stat-card active">
+        <div class="stat-value">{{ today_submission_count }}</div>
+        <div class="stat-label">今日提交</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ active_judge_count }}</div>
+        <div class="stat-label">活跃判题任务</div>
+    </div>
+</div>
+
+<div style="background-color: var(--surface); padding: 20px; border-radius: 8px; border: 1px solid var(--border);">
+    <h3>最近提交 ({{ recent_submissions|length }})</h3>
+    {% if recent_submissions %}
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>用户</th>
+                <th>题目</th>
+                <th>语言</th>
+                <th>状态</th>
+                <th>用时</th>
+                <th>内存</th>
+                <th>提交时间</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in recent_submissions %}
+            <tr>
+                <td>#{{ s.id }}</td>
+                <td>{{ s.author.username }}</td>
+                <td>{{ s.problem.title }}</td>
+                <td>{{ s.language }}</td>
+                <td>
+                    {% if s.status == 'AC' %}
+                        <span class="badge success">{{ s.status }}</span>
+                    {% elif s.status in ['WA', 'RE', 'CE'] %}
+                        <span class="badge error">{{ s.status }}</span>
+                    {% elif s.status in ['TLE', 'MLE'] %}
+                        <span class="badge warning">{{ s.status }}</span>
+                    {% else %}
+                        <span class="badge info">{{ s.status }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ s.time_used or '-' }}ms</td>
+                <td>{{ s.memory_used or '-' }}KB</td>
+                <td>{{ s.submitted_at.strftime('%m-%d %H:%M') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--text-muted);">暂无提交</p>
+    {% endif %}
+</div>
+{% endblock %}

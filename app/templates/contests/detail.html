@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ contest.title }} - OJ System{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>{{ contest.title }}</h2>
+    <p style="color: var(--text-muted); margin-top: 6px;">{{ contest.description or 'No description' }}</p>
+    <div style="display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px;">
+        <div>
+            <strong>Status:</strong> {{ contest.status }}
+        </div>
+        <div>
+            <strong>Participants:</strong> {{ contest.participant_count }}{% if contest.max_participants > 0 %}/{{ contest.max_participants }}{% endif %}
+        </div>
+        <div>
+            <strong>Start:</strong> {{ contest.start_time.strftime('%Y-%m-%d %H:%M') }}
+        </div>
+        <div>
+            <strong>End:</strong> {{ contest.end_time.strftime('%Y-%m-%d %H:%M') }}
+        </div>
+    </div>
+</div>
+
+{% if has_password and not password_ok and not participant %}
+<div class="card">
+    <h3>Contest Password</h3>
+    <p style="color: var(--text-muted); margin: 8px 0 12px;">This contest is protected. Enter the password to register.</p>
+    <form method="POST" action="{{ url_for('web.contest_register', contest_id=contest.id) }}" style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <input type="password" name="password" placeholder="Contest password" style="flex: 1; min-width: 220px;" required>
+        <button class="btn btn-primary" type="submit">Register</button>
+    </form>
+</div>
+{% endif %}
+
+<div class="card">
+    <h3>Problems</h3>
+    {% if participant %}
+        {% if problem_stats %}
+    <table>
+        <thead>
+            <tr>
+                <th>Alias</th>
+                <th>Title</th>
+                <th>Difficulty</th>
+                <th>My Status</th>
+                <th>Submitted</th>
+                <th>Accepted</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in problem_stats %}
+            {% set cp = item.contest_problem %}
+            <tr>
+                <td>{{ cp.alias }}</td>
+                <td><a href="{{ url_for('web.contest_problem_detail', contest_id=contest.id, alias=cp.alias) }}">{{ cp.problem.title }}</a></td>
+                <td class="diff-{{ cp.problem.difficulty }}">{{ cp.problem.difficulty }}</td>
+                <td>
+                    {% if item.user_status == 'AC' %}
+                        <span class="status-AC">AC</span>
+                    {% elif item.user_status == 'WA' %}
+                        <span class="status-WA">WA ({{ item.user_attempts }})</span>
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>{{ item.submitted_count }}</td>
+                <td>{{ item.accepted_count }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+        {% else %}
+        <p style="color: var(--text-muted); margin-top: 12px;">No problems assigned.</p>
+        {% endif %}
+        <div style="margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap;">
+            {% if contest.problem_list %}
+            <a href="{{ url_for('web.contest_problem_detail', contest_id=contest.id, alias=contest.problem_list[0].alias) }}" class="btn btn-primary">Submit</a>
+            {% endif %}
+            <a href="{{ url_for('web.contest_submissions', contest_id=contest.id) }}" class="btn btn-secondary">My Submissions</a>
+            <a href="{{ url_for('web.contest_ranklist', contest_id=contest.id) }}" class="btn btn-secondary">Ranklist</a>
+        </div>
+    {% else %}
+        {% if contest.is_registration_open %}
+            {% if not (has_password and not password_ok) %}
+            <form method="POST" action="{{ url_for('web.contest_register', contest_id=contest.id) }}" style="margin-top: 12px;">
+                {% if has_password %}
+                <div class="form-group">
+                    <label>Contest Password</label>
+                    <input type="password" name="password" required>
+                </div>
+                {% endif %}
+                <button class="btn btn-primary" type="submit">Register</button>
+            </form>
+            {% endif %}
+        {% else %}
+            <p style="color: var(--text-muted); margin-top: 12px;">Registration is closed.</p>
+        {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

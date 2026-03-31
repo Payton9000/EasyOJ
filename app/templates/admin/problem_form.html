@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if problem else 'Create' }} Problem - Admin{% endblock %}
+{% block content %}
+<div class="card">
+    <h2 style="color: var(--brand); margin-bottom:20px;">{{ 'Edit Problem: ' ~ problem.title if problem else 'Create New Problem' }}</h2>
+    <form method="POST">
+        <div class="form-group">
+            <label>Title *</label>
+            <input type="text" name="title" value="{{ problem.title if problem else '' }}" required>
+        </div>
+        <div class="form-group">
+            <label>Description *</label>
+            <textarea name="description" rows="8">{{ problem.description if problem else '' }}</textarea>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+            <div class="form-group">
+                <label>Input Description</label>
+                <textarea name="input_description" rows="4">{{ problem.input_description if problem else '' }}</textarea>
+            </div>
+            <div class="form-group">
+                <label>Output Description</label>
+                <textarea name="output_description" rows="4">{{ problem.output_description if problem else '' }}</textarea>
+            </div>
+            <div class="form-group">
+                <label>Sample Input</label>
+                <textarea name="sample_input" rows="4" style="font-family:monospace;">{{ problem.sample_input if problem else '' }}</textarea>
+            </div>
+            <div class="form-group">
+                <label>Sample Output</label>
+                <textarea name="sample_output" rows="4" style="font-family:monospace;">{{ problem.sample_output if problem else '' }}</textarea>
+            </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:16px;">
+            <div class="form-group">
+                <label>Time Limit (ms)</label>
+                <input type="number" name="time_limit" value="{{ problem.time_limit if problem else 1000 }}" min="100" max="30000">
+            </div>
+            <div class="form-group">
+                <label>Memory Limit (MB)</label>
+                <input type="number" name="memory_limit" value="{{ problem.memory_limit if problem else 256 }}" min="16" max="1024">
+            </div>
+            <div class="form-group">
+                <label>Difficulty</label>
+                <select name="difficulty">
+                    {% for d in ['easy', 'medium', 'hard'] %}
+                    <option value="{{ d }}" {% if problem and problem.difficulty == d %}selected{% endif %}>{{ d | capitalize }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Source</label>
+                <input type="text" name="source" value="{{ problem.source if problem else '' }}">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="is_public" value="1" {% if not problem or problem.is_public %}checked{% endif %} style="width:auto; margin-right:6px;">
+                Public (visible to all users)
+            </label>
+        </div>
+        <button type="submit" class="btn btn-primary">{{ 'Update Problem' if problem else 'Create Problem' }}</button>
+        <a href="/admin/problems" class="btn btn-secondary" style="margin-left:8px;">Cancel</a>
+    </form>
+
+    {% if problem %}
+    <hr style="border-color: var(--border); margin:24px 0;">
+    <h3 style="color: var(--text-muted); margin-bottom:16px;">Upload Test Case</h3>
+    <form method="POST" action="/admin/problem/{{ problem.id }}/upload_testcase" enctype="multipart/form-data">
+        <div style="display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap;">
+            <div class="form-group" style="flex:1; min-width:200px;">
+                <label>Input File (.in)</label>
+                <input type="file" name="input_file" accept=".in" required>
+            </div>
+            <div class="form-group" style="flex:1; min-width:200px;">
+                <label>Output File (.out)</label>
+                <input type="file" name="output_file" accept=".out" required>
+            </div>
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary">Upload</button>
+            </div>
+        </div>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

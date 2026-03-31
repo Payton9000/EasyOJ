@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Problem {{ contest_problem.alias }} - {{ problem.title }}{% endblock %}
+{% block content %}
+<div class="card">
+    <h2 style="color: var(--brand);">Problem {{ contest_problem.alias }}: {{ problem.title }}</h2>
+    <div style="display:flex; gap:24px; margin:12px 0 20px; color:var(--text-muted); font-size:0.9rem;">
+        <span>⏱ Time Limit: <strong style="color:var(--text);">{{ problem.time_limit }}ms</strong></span>
+        <span>💾 Memory Limit: <strong style="color:var(--text);">{{ problem.memory_limit }}MB</strong></span>
+        <span>📊 Difficulty: <strong class="diff-{{ problem.difficulty }}">{{ problem.difficulty | capitalize }}</strong></span>
+    </div>
+    <h3 style="color:var(--text-muted); margin-bottom:8px;">Description</h3>
+    <div style="line-height:1.7; margin-bottom:16px;">{{ problem.description | safe }}</div>
+    {% if problem.input_description %}
+    <h3 style="color:var(--text-muted); margin-bottom:8px;">Input</h3>
+    <div style="line-height:1.7; margin-bottom:16px;">{{ problem.input_description | safe }}</div>
+    {% endif %}
+    {% if problem.output_description %}
+    <h3 style="color:var(--text-muted); margin-bottom:8px;">Output</h3>
+    <div style="line-height:1.7; margin-bottom:16px;">{{ problem.output_description | safe }}</div>
+    {% endif %}
+    {% if problem.sample_input %}
+    <h3 style="color:var(--text-muted); margin-bottom:8px;">Sample Input</h3>
+    <pre>{{ problem.sample_input }}</pre>
+    {% endif %}
+    {% if problem.sample_output %}
+    <h3 style="color:var(--text-muted); margin:16px 0 8px;">Sample Output</h3>
+    <pre>{{ problem.sample_output }}</pre>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3>Submit</h3>
+    <form method="POST" action="{{ url_for('web.contest_submit', contest_id=contest.id, alias=contest_problem.alias) }}">
+        <div class="form-group">
+            <label>Language</label>
+            <select name="language" required>
+                {% for key, lang in supported_languages.items() %}
+                <option value="{{ key }}">{{ lang.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Code</label>
+            <textarea name="code" rows="12" required></textarea>
+        </div>
+        <button class="btn btn-primary" type="submit">Submit</button>
+        <a href="{{ url_for('web.contest_detail', contest_id=contest.id) }}" class="btn btn-secondary" style="margin-left:8px;">Back</a>
+    </form>
+</div>
+{% endblock %}

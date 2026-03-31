@@ -1,0 +1,55 @@
+{% extends "admin/admin_base.html" %}
+
+{% block admin_content %}
+<h2>{{ contest.title }} - 排行榜</h2>
+
+{% if contest.is_sealed and contest.status != 'Ended' %}
+<div style="background-color: var(--warn); color: #000; padding: 10px; border-radius: 4px; margin-bottom: 20px;">
+    ⚠️ 已封榜：比赛结束前排名不显示
+</div>
+{% endif %}
+
+{% if ranklist %}
+<table>
+    <thead>
+        <tr>
+            <th>排名</th>
+            <th>用户</th>
+            <th>AC数</th>
+            <th>罚时</th>
+            {% for cp in contest.problem_list %}
+            <th title="{{ cp.problem.title }}">{{ cp.alias or 'Q' ~ loop.index }}</th>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in ranklist %}
+        <tr>
+            <td style="font-weight: bold;">{{ item.rank }}</td>
+            <td>{{ item.user.username }}</td>
+            <td style="color: var(--success);">{{ item.solved }}</td>
+            <td>{{ item.penalty }}</td>
+            {% for cp in contest.problem_list %}
+                {% set ps = item.problems.get(cp.id, {}) %}
+                <td style="{% if ps.status == 'AC' %}background-color: rgba(56, 214, 138, 0.12); color: var(--success);{% elif ps.status == 'WA' %}background-color: rgba(215, 90, 74, 0.12); color: #d75a4a;{% endif %}">
+                    {% if ps.status == 'AC' %}
+                        ✓ {{ ps.ac_time }}
+                    {% elif ps.status == 'WA' %}
+                        ✗ {{ ps.attempts }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p style="color: var(--text-muted);">暂无排行榜数据</p>
+{% endif %}
+
+<div style="margin-top: 20px;">
+    <a href="{{ url_for('admin.contests_list') }}" class="btn btn-primary">返回竞赛列表</a>
+</div>
+{% endblock %}

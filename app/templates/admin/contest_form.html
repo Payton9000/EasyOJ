@@ -1,0 +1,71 @@
+{% extends "admin/admin_base.html" %}
+
+{% block admin_content %}
+<h2>{% if contest %}编辑竞赛{% else %}创建竞赛{% endif %}</h2>
+
+<form method="POST" style="background-color: var(--surface); padding: 20px; border-radius: 8px; max-width: 600px; border: 1px solid var(--border);">
+    <div style="margin-bottom: 20px;">
+        <label for="title">竞赛标题 *</label>
+        <input type="text" id="title" name="title" value="{{ contest.title if contest else '' }}" required 
+               style="width: 100%; padding: 8px; border-radius: 4px; margin: 5px 0; box-sizing: border-box;">
+    </div>
+    
+    <div style="margin-bottom: 20px;">
+        <label for="description">竞赛描述</label>
+        <textarea id="description" name="description" rows="4"
+                  style="width: 100%; padding: 8px; border-radius: 4px; margin: 5px 0; box-sizing: border-box; font-family: monospace;">{{ contest.description if contest else '' }}</textarea>
+    </div>
+    
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+        <div>
+            <label for="start_time">开始时间 *</label>
+            <input type="datetime-local" id="start_time" name="start_time" 
+                   value="{% if contest %}{{ contest.start_time.strftime('%Y-%m-%dT%H:%M') }}{% endif %}" required
+                   style="width: 100%; padding: 8px; border-radius: 4px; margin: 5px 0; box-sizing: border-box;">
+        </div>
+        
+        <div>
+            <label for="end_time">结束时间 *</label>
+            <input type="datetime-local" id="end_time" name="end_time" 
+                   value="{% if contest %}{{ contest.end_time.strftime('%Y-%m-%dT%H:%M') }}{% endif %}" required
+                   style="width: 100%; padding: 8px; border-radius: 4px; margin: 5px 0; box-sizing: border-box;">
+        </div>
+    </div>
+    
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+        <div>
+            <label for="max_participants">最大参赛人数</label>
+            <input type="number" id="max_participants" name="max_participants" min="0" 
+                   value="{{ contest.max_participants if contest else 0 }}"
+                   placeholder="0表示不限制"
+                   style="width: 100%; padding: 8px; border-radius: 4px; margin: 5px 0; box-sizing: border-box;">
+        </div>
+        
+        <div>
+            <label for="password">访问密码（可选）</label>
+            <input type="text" id="password" name="password" 
+                   value="{{ contest.password if contest else '' }}"
+                   placeholder="留空表示公开"
+                   style="width: 100%; padding: 8px; border-radius: 4px; margin: 5px 0; box-sizing: border-box;">
+        </div>
+    </div>
+    
+    <div style="margin-bottom: 20px;">
+        <label style="display: flex; align-items: center; cursor: pointer;">
+            <input type="checkbox" name="is_public" {% if not contest or contest.is_public %}checked{% endif %}
+                   style="margin-right: 10px; cursor: pointer;">
+            <span>前台可见</span>
+        </label>
+        <label style="display: flex; align-items: center; cursor: pointer; margin-top: 10px;">
+            <input type="checkbox" name="is_sealed" {% if contest and contest.is_sealed %}checked{% endif %}
+                   style="margin-right: 10px; cursor: pointer;">
+            <span>封榜（比赛结束后隐藏实时排名）</span>
+        </label>
+    </div>
+    
+    <div style="display: flex; gap: 10px;">
+        <button type="submit" class="btn btn-primary">保存</button>
+        <a href="{{ url_for('admin.contests_list') }}" class="btn btn-primary" style="text-decoration: none;">取消</a>
+    </div>
+</form>
+{% endblock %}

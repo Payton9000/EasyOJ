@@ -1,0 +1,92 @@
+{% extends "admin/admin_base.html" %}
+
+{% block admin_content %}
+<h2>用户管理</h2>
+
+<div style="margin-bottom: 20px;">
+    <form method="GET" style="display: inline;">
+        <input type="text" name="q" placeholder="搜索用户..." value="{{ q }}" style="padding: 8px; border-radius: 4px;">
+        
+        <select name="role" style="padding: 8px; border-radius: 4px;">
+            <option value="">所有角色</option>
+            <option value="user" {% if role=='user' %}selected{% endif %}>普通用户</option>
+            <option value="admin" {% if role=='admin' %}selected{% endif %}>管理员</option>
+        </select>
+        
+        <button type="submit" class="btn btn-primary">搜索</button>
+    </form>
+</div>
+
+{% if users %}
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>用户名</th>
+            <th>邮箱</th>
+            <th>角色</th>
+            <th>提交数</th>
+            <th>AC数</th>
+            <th>活跃</th>
+            <th>注册时间</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for u in users %}
+        <tr>
+            <td>#{{ u.id }}</td>
+            <td><strong>{{ u.username }}</strong></td>
+            <td>{{ u.email }}</td>
+            <td>
+                {% if u.is_admin %}
+                    <span class="badge error">管理员</span>
+                {% else %}
+                    <span class="badge info">普通用户</span>
+                {% endif %}
+            </td>
+            <td>{{ u.submissions|length }}</td>
+            <td>{{ u.submissions|selectattr('status', 'equalto', 'AC')|list|length }}</td>
+            <td>
+                {% if u.is_active %}
+                    <span class="badge success">活跃</span>
+                {% else %}
+                    <span class="badge error">禁用</span>
+                {% endif %}
+            </td>
+            <td>{{ u.created_at.strftime('%Y-%m-%d') }}</td>
+            <td>
+                <a href="{{ url_for('admin.user_detail', user_id=u.id) }}" class="btn btn-primary btn-small">详情</a>
+                <form method="POST" action="{{ url_for('admin.toggle_user_active', user_id=u.id) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-small" style="{% if u.is_active %}background-color: var(--danger);{% else %}background-color: var(--success);{% endif %} color: #fff; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer;">
+                        {% if u.is_active %}禁用{% else %}启用{% endif %}
+                    </button>
+                </form>
+                <form method="POST" action="{{ url_for('admin.toggle_user_role', user_id=u.id) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-primary btn-small">更改角色</button>
+                </form>
+                <form method="POST" action="{{ url_for('admin.reset_user_password', user_id=u.id) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-danger btn-small" onclick="return confirm('确定要重置该用户的密码吗？')">重置密码</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- 分页 -->
+{% if paginated.pages > 1 %}
+<div style="margin-top: 20px; text-align: center;">
+    {% if paginated.has_prev %}
+        <a href="{{ url_for('admin.users_list', page=paginated.prev_num, q=q, role=role) }}" class="btn btn-primary">上一页</a>
+    {% endif %}
+    <span style="margin: 0 10px; color: var(--text-muted);">第 {{ paginated.page }} / {{ paginated.pages }} 页</span>
+    {% if paginated.has_next %}
+        <a href="{{ url_for('admin.users_list', page=paginated.next_num, q=q, role=role) }}" class="btn btn-primary">下一页</a>
+    {% endif %}
+</div>
+{% endif %}
+{% else %}
+<p style="color: var(--text-muted);">暂无用户</p>
+{% endif %}
+{% endblock %}

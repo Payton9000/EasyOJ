@@ -1,0 +1,17 @@
+{
+  "submission_id": 262,
+  "final_status": "WA",
+  "error": "",
+  "cases": [
+    {
+      "case": 1,
+      "status": "WA",
+      "time_ms": 63,
+      "memory_kb": 36288,
+      "error": "",
+      "output_sample": "0",
+      "expected_sample": "18\n"
+    }
+  ],
+  "generated_at": "2026-03-31T12:07:04.008606Z"
+}
