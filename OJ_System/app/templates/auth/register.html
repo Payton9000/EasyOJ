@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Register - OJ System{% endblock %}
+{% block content %}
+<div style="max-width:420px; margin:60px auto;">
+    <div class="card">
+        <h2 style="text-align:center; margin-bottom:24px; color:#e94560;">Register</h2>
+        <form method="POST" action="/register">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" placeholder="Choose a username" required autofocus>
+            </div>
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" placeholder="Enter your email" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="At least 6 characters" required>
+            </div>
+            <div class="form-group">
+                <label for="confirm_password">Confirm Password</label>
+                <input type="password" id="confirm_password" name="confirm_password" placeholder="Repeat password" required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%; margin-top:8px;">Register</button>
+        </form>
+        <p style="text-align:center; margin-top:16px; color:#aaa;">
+            Already have an account? <a href="/login">Login</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

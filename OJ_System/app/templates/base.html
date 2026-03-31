@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}OJ System{% endblock %}</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #1a1a2e; color: #eee; font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
+        a { color: #e94560; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        nav { background: #0f3460; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
+        nav .logo { font-size: 1.3rem; font-weight: bold; color: #e94560; }
+        nav .nav-links a { margin-left: 16px; color: #eee; }
+        nav .nav-links a:hover { color: #e94560; }
+        .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+        .card { background: #16213e; border-radius: 8px; padding: 24px; margin-bottom: 20px; }
+        .flash-messages { margin-bottom: 16px; }
+        .flash { padding: 10px 16px; border-radius: 6px; margin-bottom: 8px; }
+        .flash.success { background: #1a472a; border-left: 4px solid #2ecc71; color: #2ecc71; }
+        .flash.error { background: #4a0e0e; border-left: 4px solid #e94560; color: #e94560; }
+        .btn { display: inline-block; padding: 8px 18px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.95rem; }
+        .btn-primary { background: #e94560; color: #fff; }
+        .btn-primary:hover { background: #c73652; }
+        .btn-secondary { background: #0f3460; color: #eee; }
+        .btn-secondary:hover { background: #1a4a80; }
+        .btn-danger { background: #7a1515; color: #eee; }
+        .btn-danger:hover { background: #a01515; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #0f3460; }
+        th { background: #0f3460; color: #e94560; }
+        tr:hover { background: #1e2d50; }
+        input, textarea, select { background: #0f3460; color: #eee; border: 1px solid #2a4a80; border-radius: 4px; padding: 8px 10px; width: 100%; font-size: 0.95rem; }
+        input:focus, textarea:focus, select:focus { outline: 2px solid #e94560; }
+        label { display: block; margin-bottom: 4px; color: #aaa; font-size: 0.9rem; }
+        .form-group { margin-bottom: 16px; }
+        .pagination { margin-top: 16px; }
+        .pagination a, .pagination span { display: inline-block; padding: 4px 10px; margin: 2px; border-radius: 4px; background: #0f3460; color: #eee; }
+        .pagination .current { background: #e94560; color: #fff; }
+        .status-AC { color: #2ecc71; font-weight: bold; }
+        .status-WA { color: #e74c3c; font-weight: bold; }
+        .status-TLE { color: #f39c12; font-weight: bold; }
+        .status-MLE { color: #e67e22; font-weight: bold; }
+        .status-RE { color: #9b59b6; font-weight: bold; }
+        .status-CE { color: #3498db; font-weight: bold; }
+        .status-Pending, .status-Queued, .status-Judging { color: #95a5a6; }
+        .status-Failed { color: #7f8c8d; }
+        .diff-easy { color: #2ecc71; }
+        .diff-medium { color: #f39c12; }
+        .diff-hard { color: #e74c3c; }
+        pre { background: #0a0a1a; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Consolas', monospace; color: #eee; white-space: pre-wrap; word-break: break-word; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
+        .stat-card { background: #0f3460; border-radius: 8px; padding: 16px; text-align: center; }
+        .stat-card .value { font-size: 2rem; font-weight: bold; color: #e94560; }
+        .stat-card .label { font-size: 0.9rem; color: #aaa; margin-top: 4px; }
+    </style>
+</head>
+<body>
+<nav>
+    <div class="logo">🖥 OJ System</div>
+    <div class="nav-links">
+        <a href="/">Problems</a>
+        {% if current_user.is_authenticated %}
+            <a href="/submissions">My Submissions</a>
+            {% if current_user.is_admin %}
+                <a href="/admin/dashboard">Admin</a>
+            {% endif %}
+            <span style="color:#aaa; margin-left:16px;">{{ current_user.username }}</span>
+            <a href="/logout" style="margin-left:16px;">Logout</a>
+        {% else %}
+            <a href="/login">Login</a>
+            <a href="/register">Register</a>
+        {% endif %}
+    </div>
+</nav>
+<div class="container">
+    {% with messages = get_flashed_messages(with_categories=True) %}
+    {% if messages %}
+    <div class="flash-messages">
+        {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+</div>
+</body>
+</html>

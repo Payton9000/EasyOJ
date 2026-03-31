@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Manage Problems - Admin{% endblock %}
+{% block content %}
+<div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h2 style="color:#e94560;">Manage Problems</h2>
+        <a href="/admin/problem/create" class="btn btn-primary">+ Create Problem</a>
+    </div>
+    <table>
+        <thead><tr><th>ID</th><th>Title</th><th>Difficulty</th><th>Public</th><th>Actions</th></tr></thead>
+        <tbody>
+        {% for p in problems %}
+        <tr>
+            <td>{{ p.id }}</td>
+            <td><a href="/problem/{{ p.id }}">{{ p.title }}</a></td>
+            <td><span class="diff-{{ p.difficulty }}">{{ p.difficulty | capitalize }}</span></td>
+            <td>{{ '✓' if p.is_public else '✗' }}</td>
+            <td>
+                <a href="/admin/problem/{{ p.id }}/edit" class="btn btn-secondary" style="padding:4px 10px; font-size:0.85rem;">Edit</a>
+                <form method="POST" action="/admin/problem/{{ p.id }}/delete" style="display:inline;" onsubmit="return confirm('Delete this problem?')">
+                    <button type="submit" class="btn btn-danger" style="padding:4px 10px; font-size:0.85rem;">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" style="text-align:center; color:#aaa;">No problems yet.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <div class="pagination">
+        {% if pagination.has_prev %}<a href="?page={{ pagination.prev_num }}">&laquo;</a>{% endif %}
+        {% for p in pagination.iter_pages() %}
+            {% if p %}{% if p == pagination.page %}<span class="current">{{ p }}</span>{% else %}<a href="?page={{ p }}">{{ p }}</a>{% endif %}{% else %}<span>…</span>{% endif %}
+        {% endfor %}
+        {% if pagination.has_next %}<a href="?page={{ pagination.next_num }}">&raquo;</a>{% endif %}
+    </div>
+</div>
+{% endblock %}

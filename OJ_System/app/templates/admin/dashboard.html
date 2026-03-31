@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard - OJ System{% endblock %}
+{% block content %}
+<h2 style="color:#e94560; margin-bottom:20px;">Admin Dashboard</h2>
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="value">{{ user_count }}</div>
+        <div class="label">Total Users</div>
+    </div>
+    <div class="stat-card">
+        <div class="value">{{ problem_count }}</div>
+        <div class="label">Total Problems</div>
+    </div>
+    <div class="stat-card">
+        <div class="value">{{ submission_count }}</div>
+        <div class="label">Total Submissions</div>
+    </div>
+    <div class="stat-card">
+        <div class="value">{{ ac_count }}</div>
+        <div class="label">AC Submissions</div>
+    </div>
+</div>
+<div class="card">
+    <h3 style="margin-bottom:16px;">Recent Submissions</h3>
+    <table>
+        <thead><tr><th>#</th><th>User</th><th>Problem</th><th>Language</th><th>Status</th><th>Submitted</th></tr></thead>
+        <tbody>
+        {% for s in recent_submissions %}
+        <tr>
+            <td><a href="/submission/{{ s.id }}">#{{ s.id }}</a></td>
+            <td>{{ s.user_id }}</td>
+            <td><a href="/problem/{{ s.problem_id }}">{{ s.problem_id }}</a></td>
+            <td>{{ s.language }}</td>
+            <td><span class="status-{{ s.status }}">{{ s.status }}</span></td>
+            <td>{{ s.submitted_at.strftime('%Y-%m-%d %H:%M') if s.submitted_at else '-' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" style="text-align:center; color:#aaa;">No submissions yet.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+<div style="margin-top:16px;">
+    <a href="/admin/problems" class="btn btn-secondary">Manage Problems</a>
+    <a href="/admin/users" class="btn btn-secondary" style="margin-left:8px;">Manage Users</a>
+</div>
+{% endblock %}

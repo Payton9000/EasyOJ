@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Submission #{{ submission.id }} - OJ System{% endblock %}
+{% block content %}
+<div class="card">
+    <h2 style="color:#e94560; margin-bottom:16px;">Submission #{{ submission.id }}</h2>
+    <table style="width:auto; margin-bottom:20px;">
+        <tr><th>Problem</th><td><a href="/problem/{{ submission.problem_id }}">{{ problem.title if problem else submission.problem_id }}</a></td></tr>
+        <tr><th>Language</th><td>{{ submission.language }}</td></tr>
+        <tr><th>Status</th><td><span class="status-{{ submission.status }}">{{ submission.status }}</span></td></tr>
+        <tr><th>Time</th><td>{{ submission.time_used ~ 'ms' if submission.time_used is not none else '-' }}</td></tr>
+        <tr><th>Memory</th><td>{{ (submission.memory_used // 1024) ~ 'MB' if submission.memory_used else '-' }}</td></tr>
+        <tr><th>Test Cases</th><td>{{ submission.test_case_passed }} / {{ submission.test_case_total }}</td></tr>
+        <tr><th>Submitted</th><td>{{ submission.submitted_at.strftime('%Y-%m-%d %H:%M:%S') if submission.submitted_at else '-' }}</td></tr>
+        <tr><th>Judged</th><td>{{ submission.judged_at.strftime('%Y-%m-%d %H:%M:%S') if submission.judged_at else '-' }}</td></tr>
+    </table>
+    {% if submission.error_message %}
+    <h3 style="color:#aaa; margin-bottom:8px;">Error Message</h3>
+    <pre style="color:#e94560;">{{ submission.error_message }}</pre>
+    {% endif %}
+    <h3 style="color:#aaa; margin:16px 0 8px;">Code ({{ submission.language }})</h3>
+    <pre>{{ submission.code }}</pre>
+    <div style="margin-top:16px;">
+        <a href="/submissions" class="btn btn-secondary">My Submissions</a>
+        <a href="/problem/{{ submission.problem_id }}/submit" class="btn btn-primary" style="margin-left:8px;">Submit Again</a>
+    </div>
+</div>
+{% endblock %}

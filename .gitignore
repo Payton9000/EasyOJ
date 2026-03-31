@@ -1,0 +1,28 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.env
+.venv
+venv/
+env/
+
+# Database
+OJ_System/data/database.db
+OJ_System/data/temp/
+
+# Keep directory structure
+!OJ_System/data/temp/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
