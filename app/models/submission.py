@@ -7,6 +7,8 @@ class Submission(db.Model):
     __table_args__ = (
         db.Index('idx_user_problem', 'user_id', 'problem_id'),
         db.Index('idx_status', 'status'),
+        db.Index('idx_contest_problem_status', 'contest_id', 'problem_id', 'status'),
+        db.Index('idx_contest_user_submitted_at', 'contest_id', 'user_id', 'submitted_at'),
     )
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)

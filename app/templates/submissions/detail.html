@@ -13,10 +13,94 @@
         <tr><th>Submitted</th><td>{{ submission.submitted_at.strftime('%Y-%m-%d %H:%M:%S') if submission.submitted_at else '-' }}</td></tr>
         <tr><th>Judged</th><td>{{ submission.judged_at.strftime('%Y-%m-%d %H:%M:%S') if submission.judged_at else '-' }}</td></tr>
     </table>
-    {% if submission.error_message %}
+
+    {% if case_details %}
+    <h3 style="color:#aaa; margin:16px 0 8px;">Test Case Details</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Status</th>
+                <th>Time</th>
+                <th>Time Trend</th>
+                <th>Memory</th>
+                <th>Memory Trend</th>
+                <th>Error</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in case_details %}
+            <tr>
+                <td>{{ c.case }}</td>
+                <td><span class="status-{{ c.status }}">{{ c.status }}</span></td>
+                <td>{{ c.time_ms }}ms</td>
+                <td>
+                    <div style="height:8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; min-width: 120px;">
+                        <div style="height: 100%; width: {{ c.time_pct }}%; background: var(--info);"></div>
+                    </div>
+                </td>
+                <td>{{ c.memory_mb }}MB</td>
+                <td>
+                    <div style="height:8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; min-width: 120px;">
+                        <div style="height: 100%; width: {{ c.memory_pct }}%; background: var(--warn);"></div>
+                    </div>
+                </td>
+                <td>{{ c.error or '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% if failed_case and diff_rows %}
+    <h3 style="color:#aaa; margin:16px 0 8px;">Failed Case Diff (Case #{{ failed_case.case }})</h3>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 50%;">Expected</th>
+                <th style="width: 50%;">Your Output</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in diff_rows %}
+            <tr style="{% if row.kind in ['replace', 'delete', 'insert'] %}background: rgba(179, 65, 52, 0.12);{% endif %}">
+                <td><pre style="margin:0; padding:8px;">{{ row.expected }}</pre></td>
+                <td><pre style="margin:0; padding:8px;">{{ row.actual }}</pre></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% if compile_error_entries %}
+    <h3 style="color:#aaa; margin:16px 0 8px;">Structured Compile Errors</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Line</th>
+                <th>Column</th>
+                <th>Level</th>
+                <th>Message</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for err in compile_error_entries %}
+            <tr>
+                <td>{{ err.line or '-' }}</td>
+                <td>{{ err.column or '-' }}</td>
+                <td>{{ err.level }}</td>
+                <td>{{ err.message }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <h4 style="color:#aaa; margin:12px 0 8px;">Raw Compiler Output</h4>
+    <pre style="color:#e94560;">{{ submission.error_message }}</pre>
+    {% elif submission.error_message %}
     <h3 style="color:#aaa; margin-bottom:8px;">Error Message</h3>
     <pre style="color:#e94560;">{{ submission.error_message }}</pre>
     {% endif %}
+
     <h3 style="color:#aaa; margin:16px 0 8px;">Code ({{ submission.language }})</h3>
     <pre>{{ submission.code }}</pre>
     <div style="margin-top:16px;">

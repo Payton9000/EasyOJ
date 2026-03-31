@@ -50,6 +50,7 @@ def create_app(config_name='default', start_judge_engine=True, config_overrides=
     with app.app_context():
         db.create_all()
         _ensure_judge_task_columns(app)
+        _ensure_submission_indexes(app)
 
     # Initialize and start judge engine
     from app.judge.engine import JudgeEngine
@@ -92,6 +93,43 @@ def _ensure_judge_task_columns(app):
         for name, column_type in columns_to_add.items():
             if name not in existing:
                 cursor.execute(f"ALTER TABLE judge_task ADD COLUMN {name} {column_type};")
+        conn.commit()
+    except sqlite3.Error:
+        if conn is not None:
+            conn.rollback()
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def _ensure_submission_indexes(app):
+    db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if not db_uri.startswith('sqlite:///'):
+        return
+
+    db_path = db_uri.replace('sqlite:///', '')
+    if not os.path.isfile(db_path):
+        return
+
+    create_index_sql = [
+        (
+            'idx_contest_problem_status',
+            'CREATE INDEX IF NOT EXISTS idx_contest_problem_status '
+            'ON submission (contest_id, problem_id, status);',
+        ),
+        (
+            'idx_contest_user_submitted_at',
+            'CREATE INDEX IF NOT EXISTS idx_contest_user_submitted_at '
+            'ON submission (contest_id, user_id, submitted_at);',
+        ),
+    ]
+
+    conn = None
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        for _, sql in create_index_sql:
+            cursor.execute(sql)
         conn.commit()
     except sqlite3.Error:
         if conn is not None:

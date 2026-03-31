@@ -88,84 +88,135 @@ class Contest(db.Model):
             'problems': {contest_problem_id: {'status': 'AC'|'WA'|None, 'attempts': 2, 'ac_time': 45}}
         }, ...]
         """
-        from sqlalchemy import and_
-        
-        # 获取所有未被取消资格的参赛者
-        participants = db.session.query(ContestParticipant).filter(
+        from sqlalchemy import and_, case
+
+        participant_rows = db.session.query(
+            ContestParticipant.user_id,
+            User,
+        ).join(
+            User,
+            User.id == ContestParticipant.user_id,
+        ).filter(
             ContestParticipant.contest_id == self.id,
-            ContestParticipant.is_disqualified == False
+            ContestParticipant.is_disqualified == False,
         ).all()
 
-        if not participants:
+        if not participant_rows:
             return []
 
-        # 获取该竞赛的所有题目和提交
         contest_problems = db.session.query(ContestProblem).filter(
             ContestProblem.contest_id == self.id
-        ).all()
+        ).order_by(ContestProblem.display_order.asc(), ContestProblem.id.asc()).all()
 
-        # 查询所有相关提交
-        submissions = db.session.query(Submission).filter(
-            Submission.contest_id == self.id
-        ).all()
+        participant_ids = [user_id for user_id, _ in participant_rows]
+        problem_ids = [cp.problem_id for cp in contest_problems]
+
+        per_problem_stats = {}
+        if problem_ids:
+            base_stats_subquery = db.session.query(
+                Submission.user_id.label('user_id'),
+                Submission.problem_id.label('problem_id'),
+                db.func.count(Submission.id).label('attempts'),
+                db.func.min(
+                    case(
+                        (Submission.status == 'AC', Submission.submitted_at),
+                        else_=None,
+                    )
+                ).label('first_ac_time'),
+            ).filter(
+                Submission.contest_id == self.id,
+                Submission.user_id.in_(participant_ids),
+                Submission.problem_id.in_(problem_ids),
+            ).group_by(
+                Submission.user_id,
+                Submission.problem_id,
+            ).subquery()
+
+            base_rows = db.session.query(
+                base_stats_subquery.c.user_id,
+                base_stats_subquery.c.problem_id,
+                base_stats_subquery.c.attempts,
+                base_stats_subquery.c.first_ac_time,
+            ).all()
+
+            wa_rows = db.session.query(
+                Submission.user_id,
+                Submission.problem_id,
+                db.func.count(Submission.id).label('wa_before_ac'),
+            ).join(
+                base_stats_subquery,
+                and_(
+                    Submission.user_id == base_stats_subquery.c.user_id,
+                    Submission.problem_id == base_stats_subquery.c.problem_id,
+                ),
+            ).filter(
+                Submission.contest_id == self.id,
+                base_stats_subquery.c.first_ac_time.isnot(None),
+                Submission.status != 'AC',
+                Submission.submitted_at < base_stats_subquery.c.first_ac_time,
+            ).group_by(
+                Submission.user_id,
+                Submission.problem_id,
+            ).all()
+
+            wa_before_ac_map = {
+                (row.user_id, row.problem_id): int(row.wa_before_ac or 0)
+                for row in wa_rows
+            }
+
+            per_problem_stats = {
+                (row.user_id, row.problem_id): {
+                    'attempts': int(row.attempts or 0),
+                    'first_ac_time': row.first_ac_time,
+                    'wa_before_ac': wa_before_ac_map.get((row.user_id, row.problem_id), 0),
+                }
+                for row in base_rows
+            }
 
         ranklist = []
-        for participant in participants:
-            user_id = participant.user_id
-            
-            # 计算该用户的排名数据
+        for user_id, user in participant_rows:
             solved = 0
             total_penalty = 0
             problem_status = {}
 
             for cp in contest_problems:
-                # 获取该用户本题的所有提交
-                user_submissions = [s for s in submissions 
-                                   if s.user_id == user_id and s.problem_id == cp.problem_id]
-                user_submissions.sort(key=lambda x: x.submitted_at)
-
+                stats = per_problem_stats.get((user_id, cp.problem_id))
                 status = None
-                attempts = len(user_submissions)
+                attempts = 0
                 ac_time = None
                 penalty = 0
 
-                if user_submissions:
-                    # 找第一个AC
-                    ac_submission = next((s for s in user_submissions if s.status == 'AC'), None)
-                    if ac_submission:
+                if stats:
+                    attempts = stats['attempts']
+                    first_ac_time = stats['first_ac_time']
+                    if first_ac_time is not None:
                         status = 'AC'
                         solved += 1
-                        # 计算AC时间（距比赛开始的分钟数）
-                        ac_time = int((ac_submission.submitted_at - self.start_time).total_seconds() / 60)
-                        # 计算罚时：AC前的WA次数 * 20
-                        wa_before_ac = len([s for s in user_submissions if s.submitted_at < ac_submission.submitted_at and s.status != 'AC'])
-                        penalty = ac_time + wa_before_ac * 20
+                        ac_delta = first_ac_time - self.start_time
+                        ac_time = max(0, int(ac_delta.total_seconds() / 60))
+                        penalty = ac_time + stats['wa_before_ac'] * 20
                         total_penalty += penalty
                     else:
-                        # 没有AC，只有WA或其他
                         status = 'WA'
-                        attempts = len(user_submissions)
 
                 problem_status[cp.id] = {
                     'status': status,
                     'attempts': attempts,
                     'ac_time': ac_time,
-                    'penalty': penalty
+                    'penalty': penalty,
                 }
 
             ranklist.append({
-                'user': db.session.query(User).get(user_id),
+                'user': user,
                 'solved': solved,
                 'penalty': total_penalty,
-                'problems': problem_status
+                'problems': problem_status,
             })
 
-        # 按solved降序，再按penalty升序
         ranklist.sort(key=lambda x: (-x['solved'], x['penalty']))
 
-        # 添加rank字段
-        for idx, item in enumerate(ranklist):
-            item['rank'] = idx + 1
+        for idx, item in enumerate(ranklist, start=1):
+            item['rank'] = idx
 
         return ranklist
 

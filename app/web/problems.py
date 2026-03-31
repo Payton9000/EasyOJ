@@ -1,14 +1,169 @@
 import os
+import json
+import re
+from difflib import SequenceMatcher
 
 from flask import (render_template, request, redirect, url_for, flash,
                    current_app, abort)
 from flask_login import login_required, current_user
 
 from app import db
+from app.models.judge_task import JudgeTask
 from app.models.problem import Problem
 from app.models.submission import Submission
 from app.utils.file_utils import ensure_dir, get_submission_dir
 from app.web import web_bp
+
+
+def _safe_int(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _load_submission_judge_log(submission_id):
+    task = JudgeTask.query.filter_by(submission_id=submission_id).first()
+    log_path = None
+
+    if task and task.debug_log_path and os.path.isfile(task.debug_log_path):
+        log_path = task.debug_log_path
+    else:
+        log_dir = current_app.config.get('JUDGE_LOG_DIR')
+        if log_dir:
+            fallback = os.path.join(log_dir, f'submission_{submission_id}.json')
+            if os.path.isfile(fallback):
+                log_path = fallback
+
+    if not log_path:
+        return None
+
+    try:
+        with open(log_path, 'r', encoding='utf-8') as handle:
+            payload = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    return payload if isinstance(payload, dict) else None
+
+
+def _normalize_case_logs(case_logs):
+    normalized = []
+    max_time = 0
+    max_memory = 0
+
+    for idx, item in enumerate(case_logs or [], start=1):
+        if not isinstance(item, dict):
+            continue
+
+        time_ms = max(0, _safe_int(item.get('time_ms'), 0))
+        memory_kb = max(0, _safe_int(item.get('memory_kb'), 0))
+        max_time = max(max_time, time_ms)
+        max_memory = max(max_memory, memory_kb)
+
+        raw_status = str(item.get('status') or 'UNKNOWN').upper()
+        normalized.append({
+            'case': _safe_int(item.get('case'), idx),
+            'raw_status': raw_status,
+            'status': 'AC' if raw_status == 'OK' else raw_status,
+            'time_ms': time_ms,
+            'memory_kb': memory_kb,
+            'memory_mb': round(memory_kb / 1024, 2) if memory_kb else 0,
+            'error': (item.get('error') or '').strip(),
+            'output_sample': item.get('output_sample') or '',
+            'expected_sample': item.get('expected_sample') or '',
+        })
+
+    for item in normalized:
+        item['time_pct'] = int(item['time_ms'] / max_time * 100) if max_time else 0
+        item['memory_pct'] = int(item['memory_kb'] / max_memory * 100) if max_memory else 0
+
+    return normalized
+
+
+def _parse_compile_errors(error_message):
+    if not error_message:
+        return []
+
+    patterns = [
+        re.compile(
+            r'^(?P<file>[^:\s][^:]*):(?P<line>\d+):(?P<column>\d+):\s*'
+            r'(?P<level>fatal error|error|warning|note):\s*(?P<message>.+)$',
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r'^(?P<file>[^:\s][^:]*):(?P<line>\d+):\s*'
+            r'(?P<level>error|warning):\s*(?P<message>.+)$',
+            re.IGNORECASE,
+        ),
+    ]
+
+    entries = []
+    for raw_line in error_message.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        match = None
+        for pattern in patterns:
+            matched = pattern.match(line)
+            if matched:
+                match = matched
+                break
+
+        if match:
+            groups = match.groupdict()
+            entries.append({
+                'file': groups.get('file') or '',
+                'line': _safe_int(groups.get('line'), 0),
+                'column': _safe_int(groups.get('column'), 0),
+                'level': (groups.get('level') or 'error').lower(),
+                'message': (groups.get('message') or '').strip(),
+                'raw': line,
+            })
+
+    return entries[:100]
+
+
+def _build_diff_rows(expected_sample, output_sample, max_rows=40):
+    expected_lines = (expected_sample or '').splitlines()
+    output_lines = (output_sample or '').splitlines()
+    matcher = SequenceMatcher(None, expected_lines, output_lines)
+
+    rows = []
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if len(rows) >= max_rows:
+            break
+
+        if tag == 'equal':
+            if i2 - i1 > 1:
+                rows.append({'kind': 'same', 'expected': '...', 'actual': '...'})
+            elif i2 > i1:
+                rows.append({
+                    'kind': 'same',
+                    'expected': expected_lines[i1],
+                    'actual': output_lines[j1],
+                })
+            continue
+
+        width = max(i2 - i1, j2 - j1)
+        for offset in range(width):
+            if len(rows) >= max_rows:
+                break
+            expected_line = expected_lines[i1 + offset] if i1 + offset < i2 else ''
+            output_line = output_lines[j1 + offset] if j1 + offset < j2 else ''
+            rows.append({
+                'kind': tag,
+                'expected': expected_line,
+                'actual': output_line,
+            })
+
+    if not rows:
+        rows.append({'kind': 'same', 'expected': '(empty)', 'actual': '(empty)'})
+    elif len(rows) >= max_rows:
+        rows.append({'kind': 'truncated', 'expected': '...', 'actual': '...'})
+
+    return rows
 
 
 @web_bp.route('/')
@@ -98,8 +253,34 @@ def submission_detail(submission_id):
     submission = Submission.query.get_or_404(submission_id)
     if submission.user_id != current_user.id and not current_user.is_admin:
         abort(403)
+
+    judge_log = _load_submission_judge_log(submission.id)
+    case_details = _normalize_case_logs((judge_log or {}).get('cases', []))
+    failed_case = next(
+        (item for item in case_details if item.get('raw_status') not in ('OK', 'AC')),
+        None,
+    )
+    diff_rows = []
+    if failed_case and (failed_case.get('expected_sample') or failed_case.get('output_sample')):
+        diff_rows = _build_diff_rows(
+            failed_case.get('expected_sample', ''),
+            failed_case.get('output_sample', ''),
+        )
+
+    compile_error_entries = []
+    if submission.status == 'CE':
+        compile_error_entries = _parse_compile_errors(submission.error_message)
+
     problem = Problem.query.get(submission.problem_id)
-    return render_template('submissions/detail.html', submission=submission, problem=problem)
+    return render_template(
+        'submissions/detail.html',
+        submission=submission,
+        problem=problem,
+        case_details=case_details,
+        failed_case=failed_case,
+        diff_rows=diff_rows,
+        compile_error_entries=compile_error_entries,
+    )
 
 
 @web_bp.route('/submissions')

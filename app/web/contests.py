@@ -1,5 +1,6 @@
 from flask import render_template, request, abort, redirect, url_for, flash, session, current_app
 from flask_login import current_user, login_required
+from sqlalchemy import case
 
 from app.web import web_bp
 from app import db
@@ -50,21 +51,44 @@ def contest_detail(contest_id):
     if participant:
         problem_status = contest.get_problem_status(current_user.id)
 
-    for cp in contest.problem_list:
-        submitted_count = db.session.query(Submission.user_id).filter(
+    contest_problem_list = contest.problem_list
+    problem_ids = [cp.problem_id for cp in contest_problem_list]
+    problem_aggregate = {}
+
+    if problem_ids:
+        aggregate_rows = db.session.query(
+            Submission.problem_id.label('problem_id'),
+            db.func.count(db.distinct(Submission.user_id)).label('submitted_count'),
+            db.func.count(
+                db.distinct(
+                    case(
+                        (Submission.status == 'AC', Submission.user_id),
+                        else_=None,
+                    )
+                )
+            ).label('accepted_count'),
+        ).filter(
             Submission.contest_id == contest.id,
-            Submission.problem_id == cp.problem_id,
-        ).distinct().count()
-        accepted_count = db.session.query(Submission.user_id).filter(
-            Submission.contest_id == contest.id,
-            Submission.problem_id == cp.problem_id,
-            Submission.status == 'AC',
-        ).distinct().count()
+            Submission.problem_id.in_(problem_ids),
+        ).group_by(
+            Submission.problem_id,
+        ).all()
+
+        problem_aggregate = {
+            row.problem_id: {
+                'submitted_count': int(row.submitted_count or 0),
+                'accepted_count': int(row.accepted_count or 0),
+            }
+            for row in aggregate_rows
+        }
+
+    for cp in contest_problem_list:
+        counts = problem_aggregate.get(cp.problem_id, {})
         user_state = problem_status.get(cp.id, {})
         problem_stats.append({
             'contest_problem': cp,
-            'submitted_count': submitted_count,
-            'accepted_count': accepted_count,
+            'submitted_count': counts.get('submitted_count', 0),
+            'accepted_count': counts.get('accepted_count', 0),
             'user_status': user_state.get('status'),
             'user_attempts': user_state.get('attempts', 0),
         })
