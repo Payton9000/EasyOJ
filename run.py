@@ -1,6 +1,6 @@
-import sys
-import os
 import multiprocessing
+import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -18,13 +18,35 @@ if __name__ == '__main__':
     app = create_app(config_name, start_judge_engine=True)
     threaded = os.environ.get('FLASK_THREADED', '1') != '0'
     use_reloader = os.environ.get('FLASK_RELOADER', '0') == '1'
-    print(f'Starting OJ System on http://localhost:5000 (config: {config_name})')
+    default_host = '0.0.0.0' if config_name == 'production' else '127.0.0.1'
+    host = os.environ.get('EASYOJ_HOST', default_host)
+    debug_mode = app.config.get('DEBUG', False)
+    if debug_mode and host not in ('127.0.0.1', 'localhost', '::1'):
+        print(
+            'Refusing to start in DEBUG mode on non-loopback address '
+            f'({host}). Werkzeug debugger would allow remote code execution.',
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    try:
+        port = max(1, min(65535, int(os.environ.get('EASYOJ_PORT', '5000'))))
+    except ValueError:
+        port = 5000
+    print(f'Starting OJ System on http://{host}:{port} (config: {config_name})')
     print(f'Judge engine status: {"running" if app.judge_engine.is_running else "stopped"}')
     print(f'Flask threaded mode: {"on" if threaded else "off"}')
     print(f'Flask reloader: {"on" if use_reloader else "off"}')
-    app.run(
-        debug=app.config.get('DEBUG', False),
-        port=5000,
-        threaded=threaded,
-        use_reloader=use_reloader,
-    )
+    if config_name == 'production':
+        from waitress import serve
+
+        web_threads = max(2, min(16, os.cpu_count() or 2))
+        print(f'Waitress threads: {web_threads}')
+        serve(app, host=host, port=port, threads=web_threads, connection_limit=256)
+    else:
+        app.run(
+            debug=app.config.get('DEBUG', False),
+            host=host,
+            port=port,
+            threaded=threaded,
+            use_reloader=use_reloader,
+        )

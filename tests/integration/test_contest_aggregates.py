@@ -1,5 +1,6 @@
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime
+from datetime import timedelta
 
 from flask import template_rendered
 
@@ -8,11 +9,14 @@ from app.models.contest import Contest
 from app.models.contest_participant import ContestParticipant
 from app.models.contest_problem import ContestProblem
 from app.models.submission import Submission
-from tests.utils import create_problem, create_user
+from tests.utils import create_problem
+from tests.utils import create_user
 
 
 def _login(client, username, password):
-    return client.post('/login', data={'username': username, 'password': password}, follow_redirects=True)
+    return client.post(
+        '/login', data={'username': username, 'password': password}, follow_redirects=True
+    )
 
 
 @contextmanager
@@ -50,14 +54,20 @@ def test_ranklist_is_computed_from_aggregates(client, app):
         db.session.add(contest)
         db.session.commit()
 
-        cp1 = ContestProblem(contest_id=contest.id, problem_id=problem1.id, display_order=1, alias='A')
-        cp2 = ContestProblem(contest_id=contest.id, problem_id=problem2.id, display_order=2, alias='B')
+        cp1 = ContestProblem(
+            contest_id=contest.id, problem_id=problem1.id, display_order=1, alias='A'
+        )
+        cp2 = ContestProblem(
+            contest_id=contest.id, problem_id=problem2.id, display_order=2, alias='B'
+        )
         db.session.add_all([cp1, cp2])
-        db.session.add_all([
-            ContestParticipant(contest_id=contest.id, user_id=user1.id),
-            ContestParticipant(contest_id=contest.id, user_id=user2.id),
-            ContestParticipant(contest_id=contest.id, user_id=user3.id),
-        ])
+        db.session.add_all(
+            [
+                ContestParticipant(contest_id=contest.id, user_id=user1.id),
+                ContestParticipant(contest_id=contest.id, user_id=user2.id),
+                ContestParticipant(contest_id=contest.id, user_id=user3.id),
+            ]
+        )
 
         submissions = [
             Submission(
@@ -151,27 +161,71 @@ def test_contest_detail_problem_stats_are_grouped_once(client, app):
         db.session.add(contest)
         db.session.commit()
 
-        cp1 = ContestProblem(contest_id=contest.id, problem_id=problem1.id, display_order=1, alias='A')
-        cp2 = ContestProblem(contest_id=contest.id, problem_id=problem2.id, display_order=2, alias='B')
+        cp1 = ContestProblem(
+            contest_id=contest.id, problem_id=problem1.id, display_order=1, alias='A'
+        )
+        cp2 = ContestProblem(
+            contest_id=contest.id, problem_id=problem2.id, display_order=2, alias='B'
+        )
         db.session.add_all([cp1, cp2])
-        db.session.add_all([
-            ContestParticipant(contest_id=contest.id, user_id=user1.id),
-            ContestParticipant(contest_id=contest.id, user_id=user2.id),
-        ])
-        db.session.add_all([
-            Submission(user_id=user1.id, problem_id=problem1.id, contest_id=contest.id,
-                       language='python', code='print(1)', status='WA'),
-            Submission(user_id=user1.id, problem_id=problem1.id, contest_id=contest.id,
-                       language='python', code='print(2)', status='AC'),
-            Submission(user_id=user2.id, problem_id=problem1.id, contest_id=contest.id,
-                       language='python', code='print(3)', status='WA'),
-            Submission(user_id=user1.id, problem_id=problem2.id, contest_id=contest.id,
-                       language='python', code='print(4)', status='AC'),
-            Submission(user_id=user2.id, problem_id=problem2.id, contest_id=contest.id,
-                       language='python', code='print(5)', status='AC'),
-            Submission(user_id=user2.id, problem_id=problem2.id, contest_id=contest.id,
-                       language='python', code='print(6)', status='WA'),
-        ])
+        db.session.add_all(
+            [
+                ContestParticipant(contest_id=contest.id, user_id=user1.id),
+                ContestParticipant(contest_id=contest.id, user_id=user2.id),
+            ]
+        )
+        db.session.add_all(
+            [
+                Submission(
+                    user_id=user1.id,
+                    problem_id=problem1.id,
+                    contest_id=contest.id,
+                    language='python',
+                    code='print(1)',
+                    status='WA',
+                ),
+                Submission(
+                    user_id=user1.id,
+                    problem_id=problem1.id,
+                    contest_id=contest.id,
+                    language='python',
+                    code='print(2)',
+                    status='AC',
+                ),
+                Submission(
+                    user_id=user2.id,
+                    problem_id=problem1.id,
+                    contest_id=contest.id,
+                    language='python',
+                    code='print(3)',
+                    status='WA',
+                ),
+                Submission(
+                    user_id=user1.id,
+                    problem_id=problem2.id,
+                    contest_id=contest.id,
+                    language='python',
+                    code='print(4)',
+                    status='AC',
+                ),
+                Submission(
+                    user_id=user2.id,
+                    problem_id=problem2.id,
+                    contest_id=contest.id,
+                    language='python',
+                    code='print(5)',
+                    status='AC',
+                ),
+                Submission(
+                    user_id=user2.id,
+                    problem_id=problem2.id,
+                    contest_id=contest.id,
+                    language='python',
+                    code='print(6)',
+                    status='WA',
+                ),
+            ]
+        )
         db.session.commit()
         contest_id = contest.id
 
@@ -191,3 +245,92 @@ def test_contest_detail_problem_stats_are_grouped_once(client, app):
 
     assert stats_by_alias['A'] == (2, 1)
     assert stats_by_alias['B'] == (2, 2)
+
+
+def test_get_problem_status_uses_aggregated_results(client, app):
+    with app.app_context():
+        user = create_user('status_u1', 'status_u1@example.com')
+        other = create_user('status_u2', 'status_u2@example.com')
+
+        problem1 = create_problem('Status Problem A')
+        problem2 = create_problem('Status Problem B')
+
+        start_time = datetime.utcnow() - timedelta(minutes=30)
+        contest = Contest(
+            title='Problem Status Aggregate Contest',
+            description='problem status aggregate test',
+            start_time=start_time,
+            end_time=start_time + timedelta(hours=2),
+            is_public=True,
+            created_by=user.id,
+        )
+        db.session.add(contest)
+        db.session.commit()
+
+        cp1 = ContestProblem(
+            contest_id=contest.id, problem_id=problem1.id, display_order=1, alias='A'
+        )
+        cp2 = ContestProblem(
+            contest_id=contest.id, problem_id=problem2.id, display_order=2, alias='B'
+        )
+        db.session.add_all([cp1, cp2])
+        db.session.add_all(
+            [
+                ContestParticipant(contest_id=contest.id, user_id=user.id),
+                ContestParticipant(contest_id=contest.id, user_id=other.id),
+            ]
+        )
+
+        db.session.add_all(
+            [
+                Submission(
+                    user_id=user.id,
+                    problem_id=problem1.id,
+                    contest_id=contest.id,
+                    language='python',
+                    code='print(1)',
+                    status='WA',
+                    submitted_at=start_time + timedelta(minutes=4),
+                ),
+                Submission(
+                    user_id=user.id,
+                    problem_id=problem1.id,
+                    contest_id=contest.id,
+                    language='python',
+                    code='print(2)',
+                    status='AC',
+                    submitted_at=start_time + timedelta(minutes=9),
+                ),
+                Submission(
+                    user_id=user.id,
+                    problem_id=problem2.id,
+                    contest_id=contest.id,
+                    language='python',
+                    code='print(3)',
+                    status='WA',
+                    submitted_at=start_time + timedelta(minutes=11),
+                ),
+                Submission(
+                    user_id=other.id,
+                    problem_id=problem1.id,
+                    contest_id=contest.id,
+                    language='python',
+                    code='print(4)',
+                    status='AC',
+                    submitted_at=start_time + timedelta(minutes=8),
+                ),
+            ]
+        )
+        db.session.commit()
+
+        status_map = contest.get_problem_status(user.id)
+        cp1_id = cp1.id
+        cp2_id = cp2.id
+
+    assert status_map[cp1_id]['status'] == 'AC'
+    assert status_map[cp1_id]['attempts'] == 2
+    assert status_map[cp1_id]['ac_time'] == 9
+
+    assert status_map[cp2_id]['status'] == 'WA'
+    assert status_map[cp2_id]['attempts'] == 1
+    assert status_map[cp2_id]['ac_time'] is None

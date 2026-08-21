@@ -1,7 +1,11 @@
 param(
     [string]$ProjectRoot = "",
     [string]$MinGWUrl = "https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-12.0.0-ucrt-r3/winlibs-x86_64-posix-seh-gcc-14.2.0-mingw-w64ucrt-12.0.0-r3.zip",
+    [string]$MinGWSha256 = "88868d745b807f083a117ff69348d8bc021ad7389aa503379dbed1866efcaeb9",
     [string]$JdkUrl = "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.14%2B7/OpenJDK17U-jdk_x64_windows_hotspot_17.0.14_7.zip",
+    [string]$JdkSha256 = "dddb108e0bf8c3e3a9c5c782fee5874a6a86d5323189969f17094260cf3a1125",
+    [string]$PythonUrl = "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip",
+    [string]$PythonSha256 = "33b448f95fecb7c6f802157dbd5e6b40a2ad9bfc8b95ca634a06ba4073ad1ac0",
     [switch]$UseChinaMirror,
     [switch]$Force
 )
@@ -10,19 +14,24 @@ $ErrorActionPreference = "Stop"
 
 function Resolve-ProjectRoot {
     param([string]$InputRoot)
-    if ($InputRoot -and (Test-Path -LiteralPath $InputRoot)) {
-        return (Resolve-Path -LiteralPath $InputRoot).Path
+    if ($InputRoot -and (Test-Path -LiteralPath $InputRoot -PathType Container)) {
+        $root = (Resolve-Path -LiteralPath $InputRoot).Path
+    } else {
+        $cwd = (Get-Location).Path
+        if (Test-Path -LiteralPath (Join-Path $cwd "run.py")) {
+            $root = $cwd
+        } elseif (Test-Path -LiteralPath (Join-Path $cwd "OJ_System\run.py")) {
+            $root = (Resolve-Path -LiteralPath (Join-Path $cwd "OJ_System")).Path
+        } else {
+            throw "Cannot locate EasyOJ root. Please pass -ProjectRoot explicitly."
+        }
     }
 
-    $cwd = (Get-Location).Path
-    if (Test-Path -LiteralPath (Join-Path $cwd "run.py")) {
-        return $cwd
+    if (-not (Test-Path -LiteralPath (Join-Path $root "run.py") -PathType Leaf) -or
+        -not (Test-Path -LiteralPath (Join-Path $root "app") -PathType Container)) {
+        throw "The deployment root must contain run.py and app: $root"
     }
-    if (Test-Path -LiteralPath (Join-Path $cwd "OJ_System\run.py")) {
-        return (Join-Path $cwd "OJ_System")
-    }
-
-    throw "Cannot locate OJ_System root. Please pass -ProjectRoot explicitly."
+    return (Resolve-Path -LiteralPath $root).Path
 }
 
 function Ensure-Dir {
@@ -39,31 +48,55 @@ function Build-UrlCandidates {
     )
 
     $urls = New-Object System.Collections.Generic.List[string]
+    $urls.Add($PrimaryUrl)
     if ($ChinaMirror) {
         $urls.Add("https://ghfast.top/$PrimaryUrl")
         $urls.Add("https://ghproxy.cn/$PrimaryUrl")
     }
-    $urls.Add($PrimaryUrl)
     return $urls
 }
 
-function Download-File {
+function Assert-Sha256 {
+    param(
+        [string]$Path,
+        [string]$ExpectedHash
+    )
+
+    if ($ExpectedHash -notmatch '^[0-9a-fA-F]{64}$') {
+        throw "A 64-character SHA-256 value is required for $Path."
+    }
+    $actualHash = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actualHash -ne $ExpectedHash.ToLowerInvariant()) {
+        throw "SHA-256 mismatch for $Path. Expected $ExpectedHash, received $actualHash."
+    }
+}
+
+function Download-VerifiedFile {
     param(
         [string[]]$Urls,
-        [string]$OutFile
+        [string]$OutFile,
+        [string]$ExpectedHash
     )
 
     foreach ($url in $Urls) {
         try {
             Write-Host "Downloading: $url"
+            if (Test-Path -LiteralPath $OutFile) {
+                Remove-Item -Force -LiteralPath $OutFile
+            }
             Invoke-WebRequest -Uri $url -OutFile $OutFile -UseBasicParsing
-            return
+            Assert-Sha256 -Path $OutFile -ExpectedHash $ExpectedHash
+            Write-Host "Verified SHA-256: $ExpectedHash"
+            return $true
         } catch {
-            Write-Host "Download failed, trying next source..." -ForegroundColor Yellow
+            if (Test-Path -LiteralPath $OutFile) {
+                Remove-Item -Force -LiteralPath $OutFile -ErrorAction SilentlyContinue
+            }
+            Write-Host "Download failed or checksum did not match; trying next source..." -ForegroundColor Yellow
         }
     }
 
-    throw "Failed to download file from all configured sources."
+    throw "Failed to download and verify the artifact from all configured sources."
 }
 
 function Expand-Zip {
@@ -91,6 +124,11 @@ $root = Resolve-ProjectRoot -InputRoot $ProjectRoot
 $toolchainDir = Join-Path $root "toolchain"
 $tempDir = Join-Path $root ".deploy_tmp"
 
+$drive = [System.IO.DriveInfo]::new([System.IO.Path]::GetPathRoot($root))
+if ($drive.AvailableFreeSpace -lt 1GB) {
+    throw "At least 1 GB of free space is required on $($drive.Name) before installing the local toolchain."
+}
+
 Ensure-Dir -Path $toolchainDir
 Ensure-Dir -Path $tempDir
 
@@ -99,12 +137,32 @@ $jdkZip = Join-Path $tempDir "jdk.zip"
 
 $mingwOut = Join-Path $toolchainDir "mingw64"
 $jdkOut = Join-Path $toolchainDir "jdk"
+$runtimeOut = Join-Path $root "runtime\python"
+$verificationMarker = Join-Path $toolchainDir ".easyoj-verified.json"
 
-if ((Test-Path -LiteralPath $mingwOut) -and -not $Force) {
+if (-not $Force -and (Test-Path -LiteralPath $verificationMarker -PathType Leaf)) {
+    try {
+        $record = Get-Content -Raw -LiteralPath $verificationMarker | ConvertFrom-Json
+        if ($record.mingw_sha256 -ne $MinGWSha256 -or
+            $record.jdk_sha256 -ne $JdkSha256 -or
+            $record.python_sha256 -ne $PythonSha256) {
+            throw "The verification record does not match the pinned toolchain hashes."
+        }
+    } catch {
+        Write-Host "Toolchain verification record is invalid; verified repair will be performed." -ForegroundColor Yellow
+        $Force = $true
+    }
+} elseif (-not $Force) {
+    Write-Host "No toolchain verification record found; verified repair will be performed." -ForegroundColor Yellow
+    $Force = $true
+}
+
+$gppExisting = Join-Path $mingwOut "bin\g++.exe"
+if ((Test-Path -LiteralPath $gppExisting -PathType Leaf) -and -not $Force) {
     Write-Host "MinGW already exists at $mingwOut (use -Force to reinstall)."
 } else {
     $mingwUrls = Build-UrlCandidates -PrimaryUrl $MinGWUrl -ChinaMirror:$UseChinaMirror
-    Download-File -Urls $mingwUrls -OutFile $mingwZip
+    Download-VerifiedFile -Urls $mingwUrls -OutFile $mingwZip -ExpectedHash $MinGWSha256
     $unpackDir = Join-Path $tempDir "mingw_unpack"
     Expand-Zip -ZipPath $mingwZip -Destination $unpackDir
 
@@ -121,11 +179,12 @@ if ((Test-Path -LiteralPath $mingwOut) -and -not $Force) {
     }
 }
 
-if ((Test-Path -LiteralPath $jdkOut) -and -not $Force) {
+$javacExisting = Get-ChildItem -LiteralPath $jdkOut -Recurse -Filter "javac.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($javacExisting -and -not $Force) {
     Write-Host "JDK already exists at $jdkOut (use -Force to reinstall)."
 } else {
     $jdkUrls = Build-UrlCandidates -PrimaryUrl $JdkUrl -ChinaMirror:$UseChinaMirror
-    Download-File -Urls $jdkUrls -OutFile $jdkZip
+    Download-VerifiedFile -Urls $jdkUrls -OutFile $jdkZip -ExpectedHash $JdkSha256
     $jdkUnpack = Join-Path $tempDir "jdk_unpack"
     Expand-Zip -ZipPath $jdkZip -Destination $jdkUnpack
 
@@ -135,8 +194,19 @@ if ((Test-Path -LiteralPath $jdkOut) -and -not $Force) {
     Move-Item -Force -LiteralPath $jdkUnpack -Destination $jdkOut
 }
 
+Ensure-Dir -Path (Join-Path $root "runtime")
+$pythonZip = Join-Path $tempDir "python-embed.zip"
+$pythonExisting = Join-Path $runtimeOut "python.exe"
+if ((Test-Path -LiteralPath $pythonExisting -PathType Leaf) -and -not $Force) {
+    Write-Host "Embedded Python already exists at $runtimeOut (use -Force to reinstall)."
+} else {
+    Download-VerifiedFile -Urls @($PythonUrl) -OutFile $pythonZip -ExpectedHash $PythonSha256
+    Expand-Zip -ZipPath $pythonZip -Destination $runtimeOut
+}
+
 $gppPath = Join-Path $mingwOut "bin\g++.exe"
 $javacPath = Join-Path $jdkOut "bin\javac.exe"
+$pythonPath = Join-Path $runtimeOut "python.exe"
 if (-not (Test-Path -LiteralPath $javacPath)) {
     $candidate = Get-ChildItem -Path $jdkOut -Recurse -Filter javac.exe -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($candidate) {
@@ -144,19 +214,52 @@ if (-not (Test-Path -LiteralPath $javacPath)) {
     }
 }
 
+if (-not (Test-Path -LiteralPath $gppPath -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $javacPath -PathType Leaf) -or
+    -not (Test-Path -LiteralPath $pythonPath -PathType Leaf)) {
+    throw "Local toolchain/runtime files are incomplete; refusing to execute unverified artifacts."
+}
+
+if (-not $Force) {
+    $record = Get-Content -Raw -LiteralPath $verificationMarker | ConvertFrom-Json
+    $currentGppHash = (Get-FileHash -LiteralPath $gppPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $currentJavacHash = (Get-FileHash -LiteralPath $javacPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $currentPythonHash = (Get-FileHash -LiteralPath $pythonPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($record.gpp_sha256 -ne $currentGppHash -or
+        $record.javac_sha256 -ne $currentJavacHash -or
+        $record.python_exe_sha256 -ne $currentPythonHash) {
+        throw "Installed toolchain files changed after verification. Reinstall with -Force."
+    }
+}
+
+@{
+    mingw_sha256 = $MinGWSha256
+    jdk_sha256 = $JdkSha256
+    python_sha256 = $PythonSha256
+    gpp_sha256 = (Get-FileHash -LiteralPath $gppPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    javac_sha256 = (Get-FileHash -LiteralPath $javacPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    python_exe_sha256 = (Get-FileHash -LiteralPath $pythonPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    verified_at_utc = [DateTime]::UtcNow.ToString('o')
+} | ConvertTo-Json | Set-Content -LiteralPath $verificationMarker -Encoding UTF8
+
 Write-Host ""
 Write-Host "Toolchain setup finished." -ForegroundColor Green
 Write-Host "ProjectRoot : $root"
 Write-Host "MinGW path  : $mingwOut"
 Write-Host "JDK path    : $jdkOut"
+Write-Host "Python path : $runtimeOut"
 Write-Host "g++ exists  : $(Test-Path -LiteralPath $gppPath)"
 Write-Host "javac exists: $(Test-Path -LiteralPath $javacPath)"
+Write-Host "Python exists: $(Test-Path -LiteralPath $pythonPath)"
 
 if (Test-Path -LiteralPath $gppPath) {
     & $gppPath --version | Select-Object -First 1
 }
 if (Test-Path -LiteralPath $javacPath) {
     & $javacPath -version
+}
+if (Test-Path -LiteralPath $pythonPath) {
+    & $pythonPath --version
 }
 
 if (Test-Path -LiteralPath $tempDir) {

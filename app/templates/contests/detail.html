@@ -1,101 +1,88 @@
 {% extends 'base.html' %}
-
-{% block title %}{{ contest.title }} - OJ System{% endblock %}
-
+{% block title %}{{ contest.title }} - EasyOJ{% endblock %}
 {% block content %}
-<div class="card">
-    <h2>{{ contest.title }}</h2>
-    <p style="color: var(--text-muted); margin-top: 6px;">{{ contest.description or 'No description' }}</p>
-    <div style="display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px;">
+<section class="card">
+    <div class="page-heading">
         <div>
-            <strong>Status:</strong> {{ contest.status }}
+            <h1 class="page-title">{{ contest.title }}</h1>
+            <p class="muted">{{ contest.description or t('contest.no_description') }}</p>
         </div>
-        <div>
-            <strong>Participants:</strong> {{ contest.participant_count }}{% if contest.max_participants > 0 %}/{{ contest.max_participants }}{% endif %}
-        </div>
-        <div>
-            <strong>Start:</strong> {{ contest.start_time.strftime('%Y-%m-%d %H:%M') }}
-        </div>
-        <div>
-            <strong>End:</strong> {{ contest.end_time.strftime('%Y-%m-%d %H:%M') }}
-        </div>
+        {% if contest.status == 'Running' %}<span class="badge success">{{ t('contests.running') }}</span>
+        {% elif contest.status == 'Ended' %}<span class="badge warning">{{ t('contests.ended') }}</span>
+        {% else %}<span class="badge info">{{ t('contests.upcoming') }}</span>{% endif %}
     </div>
-</div>
+    <div class="problem-meta">
+        <span>{{ t('contests.participants') }}: <strong>{{ contest.participant_count }}{% if contest.max_participants > 0 %}/{{ contest.max_participants }}{% endif %}</strong></span>
+        <span>{{ t('contests.start') }}: <strong>{{ contest.start_time | local_datetime }}</strong></span>
+        <span>{{ t('contests.end') }}: <strong>{{ contest.end_time | local_datetime }}</strong></span>
+    </div>
+    {% if contest.status == 'Running' %}
+    <div class="problem-meta">
+        <span class="badge success">{{ t('contest.ends_in', remaining=remaining) }}</span>
+    </div>
+    {% elif contest.status == 'Pending' %}
+    <div class="problem-meta">
+        <span class="badge info">{{ t('contest.starts_in', remaining=remaining) }}</span>
+    </div>
+    {% endif %}
+</section>
 
 {% if has_password and not password_ok and not participant %}
-<div class="card">
-    <h3>Contest Password</h3>
-    <p style="color: var(--text-muted); margin: 8px 0 12px;">This contest is protected. Enter the password to register.</p>
-    <form method="POST" action="{{ url_for('web.contest_register', contest_id=contest.id) }}" style="display: flex; gap: 10px; flex-wrap: wrap;">
-        <input type="password" name="password" placeholder="Contest password" style="flex: 1; min-width: 220px;" required>
-        <button class="btn btn-primary" type="submit">Register</button>
+<section class="card">
+    <h2 class="section-title">{{ t('contest.registration_password') }}</h2>
+    <p class="muted">{{ t('contest.protected_hint') }}</p>
+    <form class="inline-form-row" method="POST" action="{{ url_for('web.contest_register', contest_id=contest.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="password" name="password" placeholder="{{ t('contest.password_placeholder') }}" required>
+        <button class="btn btn-primary" type="submit">{{ t('contest.register') }}</button>
     </form>
-</div>
+</section>
 {% endif %}
 
-<div class="card">
-    <h3>Problems</h3>
+<section class="card">
+    <h2 class="section-title">{{ t('contest.problems') }}</h2>
     {% if participant %}
         {% if problem_stats %}
-    <table>
-        <thead>
-            <tr>
-                <th>Alias</th>
-                <th>Title</th>
-                <th>Difficulty</th>
-                <th>My Status</th>
-                <th>Submitted</th>
-                <th>Accepted</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for item in problem_stats %}
-            {% set cp = item.contest_problem %}
-            <tr>
-                <td>{{ cp.alias }}</td>
-                <td><a href="{{ url_for('web.contest_problem_detail', contest_id=contest.id, alias=cp.alias) }}">{{ cp.problem.title }}</a></td>
-                <td class="diff-{{ cp.problem.difficulty }}">{{ cp.problem.difficulty }}</td>
-                <td>
-                    {% if item.user_status == 'AC' %}
-                        <span class="status-AC">AC</span>
-                    {% elif item.user_status == 'WA' %}
-                        <span class="status-WA">WA ({{ item.user_attempts }})</span>
-                    {% else %}
-                        -
-                    {% endif %}
-                </td>
-                <td>{{ item.submitted_count }}</td>
-                <td>{{ item.accepted_count }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-        {% else %}
-        <p style="color: var(--text-muted); margin-top: 12px;">No problems assigned.</p>
-        {% endif %}
-        <div style="margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap;">
-            {% if contest.problem_list %}
-            <a href="{{ url_for('web.contest_problem_detail', contest_id=contest.id, alias=contest.problem_list[0].alias) }}" class="btn btn-primary">Submit</a>
-            {% endif %}
-            <a href="{{ url_for('web.contest_submissions', contest_id=contest.id) }}" class="btn btn-secondary">My Submissions</a>
-            <a href="{{ url_for('web.contest_ranklist', contest_id=contest.id) }}" class="btn btn-secondary">Ranklist</a>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>{{ t('contest.alias') }}</th><th>{{ t('contests.title_label') }}</th><th>{{ t('problems.difficulty') }}</th><th>{{ t('contest.my_status') }}</th><th>{{ t('contest.submitted') }}</th><th>{{ t('contest.accepted') }}</th></tr></thead>
+                <tbody>
+                {% for item in problem_stats %}
+                    {% set cp = item.contest_problem %}
+                    <tr>
+                        <td>{{ cp.alias }}</td>
+                        <td><a href="{{ url_for('web.contest_problem_detail', contest_id=contest.id, alias=cp.alias) }}">{{ cp.problem.title }}</a></td>
+                        <td class="diff-{{ cp.problem.difficulty }}">{{ cp.problem.difficulty | capitalize }}</td>
+                        <td>
+                            {% if item.user_status == 'AC' %}<span class="status-AC">AC</span>
+                            {% elif item.user_status == 'WA' %}<span class="status-WA">WA ({{ item.user_attempts }})</span>
+                            {% else %}-{% endif %}
+                        </td>
+                        <td>{{ item.submitted_count }}</td>
+                        <td>{{ item.accepted_count }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}<div class="empty-state">{{ t('contest.no_assigned') }}</div>{% endif %}
+        <div class="button-row">
+            {% if contest.problem_list %}<a href="{{ url_for('web.contest_problem_detail', contest_id=contest.id, alias=contest.problem_list[0].alias) }}" class="btn btn-primary">{{ t('contest.submit') }}</a>{% endif %}
+            <a href="{{ url_for('web.contest_submissions', contest_id=contest.id) }}" class="btn btn-secondary">{{ t('contest.my_submissions') }}</a>
+            <a href="{{ url_for('web.contest_ranklist', contest_id=contest.id) }}" class="btn btn-secondary">{{ t('contest.ranklist') }}</a>
         </div>
     {% else %}
         {% if contest.is_registration_open %}
             {% if not (has_password and not password_ok) %}
-            <form method="POST" action="{{ url_for('web.contest_register', contest_id=contest.id) }}" style="margin-top: 12px;">
+            <form method="POST" action="{{ url_for('web.contest_register', contest_id=contest.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 {% if has_password %}
-                <div class="form-group">
-                    <label>Contest Password</label>
-                    <input type="password" name="password" required>
-                </div>
+                <div class="form-group"><label for="contest-password">{{ t('contest.password_placeholder') }}</label><input id="contest-password" type="password" name="password" required></div>
                 {% endif %}
-                <button class="btn btn-primary" type="submit">Register</button>
+                <button class="btn btn-primary" type="submit">{{ t('contest.register') }}</button>
             </form>
             {% endif %}
-        {% else %}
-            <p style="color: var(--text-muted); margin-top: 12px;">Registration is closed.</p>
-        {% endif %}
+        {% else %}<div class="empty-state">{{ t('contest.registration_closed') }}</div>{% endif %}
     {% endif %}
-</div>
+</section>
 {% endblock %}

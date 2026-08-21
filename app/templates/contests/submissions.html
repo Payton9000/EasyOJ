@@ -1,57 +1,31 @@
 {% extends "base.html" %}
-{% block title %}My Contest Submissions - OJ System{% endblock %}
+{% block title %}{{ contest.title }} submissions - EasyOJ{% endblock %}
 {% block content %}
-<div class="card">
-    <h2 style="color: var(--brand); margin-bottom:16px;">{{ contest.title }} - My Submissions</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>#ID</th>
-                <th>Problem</th>
-                <th>Language</th>
-                <th>Status</th>
-                <th>Time</th>
-                <th>Memory</th>
-                <th>Submitted At</th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for s in submissions %}
-        <tr>
-            <td><a href="/submission/{{ s.id }}">#{{ s.id }}</a></td>
-            <td>{{ alias_map.get(s.problem_id, '') }} - {{ s.problem_id }}</td>
-            <td>{{ s.language }}</td>
-            <td><span class="status-{{ s.status }}">{{ s.status }}</span></td>
-            <td>{{ s.time_used ~ 'ms' if s.time_used is not none else '-' }}</td>
-            <td>{{ (s.memory_used // 1024) ~ 'MB' if s.memory_used else '-' }}</td>
-            <td>{{ s.submitted_at.strftime('%Y-%m-%d %H:%M') if s.submitted_at else '-' }}</td>
-        </tr>
-        {% else %}
-        <tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No submissions yet.</td></tr>
-        {% endfor %}
-        </tbody>
-    </table>
-    <div class="pagination">
-        {% if pagination.has_prev %}
-        <a href="{{ url_for('web.contest_submissions', contest_id=contest.id, page=pagination.prev_num) }}">&laquo; Prev</a>
-        {% endif %}
-        {% for p in pagination.iter_pages() %}
-        {% if p %}
-            {% if p == pagination.page %}
-            <span class="current">{{ p }}</span>
-            {% else %}
-            <a href="{{ url_for('web.contest_submissions', contest_id=contest.id, page=p) }}">{{ p }}</a>
-            {% endif %}
-        {% else %}
-            <span>…</span>
-        {% endif %}
-        {% endfor %}
-        {% if pagination.has_next %}
-        <a href="{{ url_for('web.contest_submissions', contest_id=contest.id, page=pagination.next_num) }}">Next &raquo;</a>
-        {% endif %}
+<section class="card">
+    <div class="page-heading"><div><h1 class="page-title">{{ contest.title }} | {{ t('submissions.title') }}</h1><p class="muted">{{ t('submissions.contest_subtitle') }}</p></div></div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>#ID</th><th>{{ t('submissions.problem') }}</th><th>{{ t('submissions.language') }}</th><th>{{ t('submissions.status') }}</th><th>{{ t('submissions.time') }}</th><th>{{ t('submissions.memory') }}</th><th>{{ t('submissions.submitted_at') }}</th></tr></thead>
+            <tbody>
+            {% for s in submissions %}
+                <tr>
+                    <td><a href="{{ url_for('web.submission_detail', submission_id=s.id) }}">#{{ s.id }}</a></td>
+                    <td>{{ alias_map.get(s.problem_id, '') }} | {{ s.problem_id }}</td>
+                    <td>{{ s.language }}</td>
+                    <td><span class="status-{{ s.status }}" data-status="{{ s.status }}">{{ t('submission.status.' ~ s.status) }}</span></td>
+                    <td>{{ s.time_used ~ ' ms' if s.time_used is not none else '-' }}</td>
+                    <td>{{ (s.memory_used // 1024) ~ ' MB' if s.memory_used else '-' }}</td>
+                    <td>{{ (s.submitted_at | local_datetime) if s.submitted_at else '-' }}</td>
+                </tr>
+            {% else %}<tr><td colspan="7"><div class="empty-state">{{ t('submissions.empty') }}</div></td></tr>{% endfor %}
+            </tbody>
+        </table>
     </div>
-    <div style="margin-top: 16px;">
-        <a href="{{ url_for('web.contest_detail', contest_id=contest.id) }}" class="btn btn-secondary">Back to Contest</a>
-    </div>
-</div>
+    <nav class="pagination" aria-label="{{ t('submissions.title') }}">
+        {% if pagination.has_prev %}<a href="{{ url_for('web.contest_submissions', contest_id=contest.id, page=pagination.prev_num) }}">&laquo; {{ t('pagination.prev') }}</a>{% endif %}
+        {% for p in pagination.iter_pages() %}{% if p %}{% if p == pagination.page %}<span class="current">{{ p }}</span>{% else %}<a href="{{ url_for('web.contest_submissions', contest_id=contest.id, page=p) }}">{{ p }}</a>{% endif %}{% else %}<span aria-hidden="true">...</span>{% endif %}{% endfor %}
+        {% if pagination.has_next %}<a href="{{ url_for('web.contest_submissions', contest_id=contest.id, page=pagination.next_num) }}">{{ t('pagination.next') }} &raquo;</a>{% endif %}
+    </nav>
+    <div class="button-row"><a href="{{ url_for('web.contest_detail', contest_id=contest.id) }}" class="btn btn-secondary">{{ t('contest.back') }}</a></div>
+</section>
 {% endblock %}

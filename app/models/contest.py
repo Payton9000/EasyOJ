@@ -1,4 +1,8 @@
 from datetime import datetime
+
+from sqlalchemy import event
+from werkzeug.security import generate_password_hash
+
 from app import db
 
 
@@ -19,8 +23,12 @@ class Contest(db.Model):
 
     # 关系
     creator = db.relationship('User', backref='created_contests')
-    problems = db.relationship('ContestProblem', backref='contest', lazy=True, cascade='all, delete-orphan')
-    participants = db.relationship('ContestParticipant', backref='contest', lazy=True, cascade='all, delete-orphan')
+    problems = db.relationship(
+        'ContestProblem', backref='contest', lazy=True, cascade='all, delete-orphan'
+    )
+    participants = db.relationship(
+        'ContestParticipant', backref='contest', lazy=True, cascade='all, delete-orphan'
+    )
     submissions = db.relationship('Submission', backref='contest', lazy=True)
 
     def __repr__(self):
@@ -46,10 +54,15 @@ class Contest(db.Model):
     @property
     def participant_count(self):
         """返回参赛人数（不含被取消资格的）"""
-        return db.session.query(db.func.count(ContestParticipant.id)).filter(
-            ContestParticipant.contest_id == self.id,
-            ContestParticipant.is_disqualified == False
-        ).scalar() or 0
+        return (
+            db.session.query(db.func.count(ContestParticipant.id))
+            .filter(
+                ContestParticipant.contest_id == self.id,
+                ContestParticipant.is_disqualified.is_(False),
+            )
+            .scalar()
+            or 0
+        )
 
     @property
     def is_ongoing(self):
@@ -78,7 +91,7 @@ class Contest(db.Model):
 
     def get_ranklist(self):
         """返回竞赛排行榜数据
-        
+
         返回格式：
         [{
             'rank': 1,
@@ -88,49 +101,63 @@ class Contest(db.Model):
             'problems': {contest_problem_id: {'status': 'AC'|'WA'|None, 'attempts': 2, 'ac_time': 45}}
         }, ...]
         """
-        from sqlalchemy import and_, case
+        from sqlalchemy import and_
+        from sqlalchemy import case
 
-        participant_rows = db.session.query(
-            ContestParticipant.user_id,
-            User,
-        ).join(
-            User,
-            User.id == ContestParticipant.user_id,
-        ).filter(
-            ContestParticipant.contest_id == self.id,
-            ContestParticipant.is_disqualified == False,
-        ).all()
+        participant_rows = (
+            db.session.query(
+                ContestParticipant.user_id,
+                User,
+            )
+            .join(
+                User,
+                User.id == ContestParticipant.user_id,
+            )
+            .filter(
+                ContestParticipant.contest_id == self.id,
+                ContestParticipant.is_disqualified.is_(False),
+            )
+            .all()
+        )
 
         if not participant_rows:
             return []
 
-        contest_problems = db.session.query(ContestProblem).filter(
-            ContestProblem.contest_id == self.id
-        ).order_by(ContestProblem.display_order.asc(), ContestProblem.id.asc()).all()
+        contest_problems = (
+            db.session.query(ContestProblem)
+            .filter(ContestProblem.contest_id == self.id)
+            .order_by(ContestProblem.display_order.asc(), ContestProblem.id.asc())
+            .all()
+        )
 
         participant_ids = [user_id for user_id, _ in participant_rows]
         problem_ids = [cp.problem_id for cp in contest_problems]
 
         per_problem_stats = {}
         if problem_ids:
-            base_stats_subquery = db.session.query(
-                Submission.user_id.label('user_id'),
-                Submission.problem_id.label('problem_id'),
-                db.func.count(Submission.id).label('attempts'),
-                db.func.min(
-                    case(
-                        (Submission.status == 'AC', Submission.submitted_at),
-                        else_=None,
-                    )
-                ).label('first_ac_time'),
-            ).filter(
-                Submission.contest_id == self.id,
-                Submission.user_id.in_(participant_ids),
-                Submission.problem_id.in_(problem_ids),
-            ).group_by(
-                Submission.user_id,
-                Submission.problem_id,
-            ).subquery()
+            base_stats_subquery = (
+                db.session.query(
+                    Submission.user_id.label('user_id'),
+                    Submission.problem_id.label('problem_id'),
+                    db.func.count(Submission.id).label('attempts'),
+                    db.func.min(
+                        case(
+                            (Submission.status == 'AC', Submission.submitted_at),
+                            else_=None,
+                        )
+                    ).label('first_ac_time'),
+                )
+                .filter(
+                    Submission.contest_id == self.id,
+                    Submission.user_id.in_(participant_ids),
+                    Submission.problem_id.in_(problem_ids),
+                )
+                .group_by(
+                    Submission.user_id,
+                    Submission.problem_id,
+                )
+                .subquery()
+            )
 
             base_rows = db.session.query(
                 base_stats_subquery.c.user_id,
@@ -139,29 +166,34 @@ class Contest(db.Model):
                 base_stats_subquery.c.first_ac_time,
             ).all()
 
-            wa_rows = db.session.query(
-                Submission.user_id,
-                Submission.problem_id,
-                db.func.count(Submission.id).label('wa_before_ac'),
-            ).join(
-                base_stats_subquery,
-                and_(
-                    Submission.user_id == base_stats_subquery.c.user_id,
-                    Submission.problem_id == base_stats_subquery.c.problem_id,
-                ),
-            ).filter(
-                Submission.contest_id == self.id,
-                base_stats_subquery.c.first_ac_time.isnot(None),
-                Submission.status != 'AC',
-                Submission.submitted_at < base_stats_subquery.c.first_ac_time,
-            ).group_by(
-                Submission.user_id,
-                Submission.problem_id,
-            ).all()
+            wa_rows = (
+                db.session.query(
+                    Submission.user_id,
+                    Submission.problem_id,
+                    db.func.count(Submission.id).label('wa_before_ac'),
+                )
+                .join(
+                    base_stats_subquery,
+                    and_(
+                        Submission.user_id == base_stats_subquery.c.user_id,
+                        Submission.problem_id == base_stats_subquery.c.problem_id,
+                    ),
+                )
+                .filter(
+                    Submission.contest_id == self.id,
+                    base_stats_subquery.c.first_ac_time.isnot(None),
+                    Submission.status != 'AC',
+                    Submission.submitted_at < base_stats_subquery.c.first_ac_time,
+                )
+                .group_by(
+                    Submission.user_id,
+                    Submission.problem_id,
+                )
+                .all()
+            )
 
             wa_before_ac_map = {
-                (row.user_id, row.problem_id): int(row.wa_before_ac or 0)
-                for row in wa_rows
+                (row.user_id, row.problem_id): int(row.wa_before_ac or 0) for row in wa_rows
             }
 
             per_problem_stats = {
@@ -206,12 +238,14 @@ class Contest(db.Model):
                     'penalty': penalty,
                 }
 
-            ranklist.append({
-                'user': user,
-                'solved': solved,
-                'penalty': total_penalty,
-                'problems': problem_status,
-            })
+            ranklist.append(
+                {
+                    'user': user,
+                    'solved': solved,
+                    'penalty': total_penalty,
+                    'problems': problem_status,
+                }
+            )
 
         ranklist.sort(key=lambda x: (-x['solved'], x['penalty']))
 
@@ -222,45 +256,82 @@ class Contest(db.Model):
 
     def get_problem_status(self, user_id):
         """返回指定用户在该竞赛中每道题的状态
-        
+
         返回格式：{contest_problem_id: {'status': 'AC'|'WA'|None, 'attempts': int, 'ac_time': int或None}}
         """
-        contest_problems = db.session.query(ContestProblem).filter(
-            ContestProblem.contest_id == self.id
-        ).all()
+        from sqlalchemy import case
 
-        submissions = db.session.query(Submission).filter(
-            Submission.contest_id == self.id,
-            Submission.user_id == user_id
-        ).all()
+        contest_problems = (
+            db.session.query(ContestProblem).filter(ContestProblem.contest_id == self.id).all()
+        )
+
+        if not contest_problems:
+            return {}
+
+        problem_ids = [cp.problem_id for cp in contest_problems]
+        aggregate_rows = (
+            db.session.query(
+                Submission.problem_id.label('problem_id'),
+                db.func.count(Submission.id).label('attempts'),
+                db.func.min(
+                    case(
+                        (Submission.status == 'AC', Submission.submitted_at),
+                        else_=None,
+                    )
+                ).label('first_ac_time'),
+            )
+            .filter(
+                Submission.contest_id == self.id,
+                Submission.user_id == user_id,
+                Submission.problem_id.in_(problem_ids),
+            )
+            .group_by(
+                Submission.problem_id,
+            )
+            .all()
+        )
+
+        aggregate_map = {
+            row.problem_id: {
+                'attempts': int(row.attempts or 0),
+                'first_ac_time': row.first_ac_time,
+            }
+            for row in aggregate_rows
+        }
 
         result = {}
         for cp in contest_problems:
-            user_submissions = [s for s in submissions if s.problem_id == cp.problem_id]
-            user_submissions.sort(key=lambda x: x.submitted_at)
-
             status = None
-            attempts = len(user_submissions)
+            attempts = 0
             ac_time = None
 
-            if user_submissions:
-                ac_submission = next((s for s in user_submissions if s.status == 'AC'), None)
-                if ac_submission:
+            stats = aggregate_map.get(cp.problem_id)
+            if stats:
+                attempts = stats['attempts']
+                first_ac_time = stats['first_ac_time']
+                if first_ac_time is not None:
                     status = 'AC'
-                    ac_time = int((ac_submission.submitted_at - self.start_time).total_seconds() / 60)
+                    ac_delta = first_ac_time - self.start_time
+                    ac_time = max(0, int(ac_delta.total_seconds() / 60))
                 else:
                     status = 'WA'
 
-            result[cp.id] = {
-                'status': status,
-                'attempts': attempts,
-                'ac_time': ac_time
-            }
+            result[cp.id] = {'status': status, 'attempts': attempts, 'ac_time': ac_time}
 
         return result
 
 
-from app.models.user import User
-from app.models.submission import Submission
-from app.models.contest_problem import ContestProblem
-from app.models.contest_participant import ContestParticipant
+from app.models.contest_participant import ContestParticipant  # noqa: E402
+from app.models.contest_problem import ContestProblem  # noqa: E402
+from app.models.submission import Submission  # noqa: E402
+from app.models.user import User  # noqa: E402
+
+
+@event.listens_for(Contest.password, 'set', retval=True)
+def _hash_contest_password(target, value, oldvalue, initiator):
+    """Keep admin-created contest passwords out of the database as plaintext."""
+    if not value or (isinstance(value, str) and not value.strip()):
+        return None
+    if isinstance(value, str) and value.startswith(('scrypt:', 'pbkdf2:', 'argon2:')):
+        return value
+    return generate_password_hash(value)

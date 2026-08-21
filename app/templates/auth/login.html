@@ -1,23 +1,20 @@
 {% extends "base.html" %}
-{% block title %}Login - OJ System{% endblock %}
+{% block title %}{{ t('auth.login') }} - EasyOJ{% endblock %}
 {% block content %}
-<div style="max-width:400px; margin:60px auto;">
-    <div class="card">
-        <h2 style="text-align:center; margin-bottom:24px; color:#e94560;">Login</h2>
-        <form method="POST" action="/login">
-            <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" placeholder="Enter username" required autofocus>
-            </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" placeholder="Enter password" required>
-            </div>
-            <button type="submit" class="btn btn-primary" style="width:100%; margin-top:8px;">Login</button>
-        </form>
-        <p style="text-align:center; margin-top:16px; color:#aaa;">
-            No account? <a href="/register">Register</a>
-        </p>
-    </div>
-</div>
+<section class="auth-card card">
+    <h1 class="page-title">{{ t('auth.login') }}</h1>
+    <form method="POST" action="{{ url_for('web.login') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label for="username">{{ t('auth.username') }}</label>
+            <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+        </div>
+        <div class="form-group">
+            <label for="password">{{ t('auth.password') }}</label>
+            <input type="password" id="password" name="password" autocomplete="current-password" required>
+        </div>
+        <button class="btn btn-primary" type="submit">{{ t('auth.login') }}</button>
+    </form>
+    <p class="auth-links">{{ t('auth.login.no_account') }} <a href="{{ url_for('web.register') }}">{{ t('auth.login.register_here') }}</a>.</p>
+</section>
 {% endblock %}

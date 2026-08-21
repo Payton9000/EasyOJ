@@ -1,59 +1,56 @@
 {% extends 'base.html' %}
-
-{% block title %}Contests - OJ System{% endblock %}
-
+{% block title %}{{ t('contests.title') }} - EasyOJ{% endblock %}
 {% block content %}
-<div class="card">
-    <h2>Contests</h2>
-    <form method="GET" style="margin: 16px 0; display: flex; gap: 10px;">
-        <input type="text" name="q" placeholder="Search contest" value="{{ q }}" style="flex: 1;">
-        <button class="btn btn-primary" type="submit">Search</button>
+<section class="card">
+    <div class="page-heading">
+        <div>
+            <h1 class="page-title">{{ t('contests.title') }}</h1>
+            <p class="muted">{{ t('contests.subtitle') }}</p>
+        </div>
+    </div>
+    <form class="search-form" method="GET" action="{{ url_for('web.contest_list') }}">
+        <div>
+            <label for="contest-search">{{ t('problems.search') }}</label>
+            <input id="contest-search" type="search" name="q" placeholder="{{ t('contests.search_placeholder') }}" value="{{ q }}">
+        </div>
+        <button class="btn btn-primary" type="submit">{{ t('problems.search') }}</button>
+        {% if q %}<a href="{{ url_for('web.contest_list') }}" class="btn btn-secondary">{{ t('problems.clear') }}</a>{% endif %}
     </form>
     {% if contests %}
-    <table>
-        <thead>
-            <tr>
-                <th>Title</th>
-                <th>Status</th>
-                <th>Start</th>
-                <th>End</th>
-                <th>Participants</th>
-                <th>Access</th>
-            </tr>
-        </thead>
-        <tbody>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>{{ t('contests.title_label') }}</th><th>{{ t('contests.status') }}</th><th>{{ t('contests.start') }}</th><th>{{ t('contests.end') }}</th><th>{{ t('contests.participants') }}</th><th>{{ t('contests.access') }}</th></tr></thead>
+            <tbody>
             {% for contest in contests %}
-            <tr style="{% if contest.status == 'Running' %}background: rgba(56, 214, 138, 0.12);{% endif %}">
-                <td><a href="{{ url_for('web.contest_detail', contest_id=contest.id) }}">{{ contest.title }}</a></td>
-                <td>{{ contest.status }}</td>
-                <td>{{ contest.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
-                <td>{{ contest.end_time.strftime('%Y-%m-%d %H:%M') }}</td>
-                <td>{{ contest.participant_count }}</td>
-                <td>{{ 'Public' if contest.is_public else 'Private' }}</td>
-            </tr>
+                <tr>
+                    <td><a href="{{ url_for('web.contest_detail', contest_id=contest.id) }}">{{ contest.title }}</a></td>
+                    <td>
+                        {% if contest.status == 'Running' %}<span class="badge success">{{ t('contests.running') }}</span>
+                        {% elif contest.status == 'Ended' %}<span class="badge warning">{{ t('contests.ended') }}</span>
+                        {% else %}<span class="badge info">{{ t('contests.upcoming') }}</span>{% endif %}
+                    </td>
+                    <td>{{ contest.start_time | local_datetime }}</td>
+                    <td>{{ contest.end_time | local_datetime }}</td>
+                    <td>{{ participant_counts.get(contest.id, 0) }}</td>
+                    <td>{{ t('contests.public') if contest.is_public else t('contests.private') }}</td>
+                </tr>
             {% endfor %}
-        </tbody>
-    </table>
+            </tbody>
+        </table>
+    </div>
     {% else %}
-    <p style="color: var(--text-muted); margin-top: 12px;">No contests available.</p>
+        <div class="empty-state">{{ t('contests.empty') }}</div>
     {% endif %}
 
     {% if paginated.pages > 1 %}
-    <div class="pagination">
-        {% if paginated.has_prev %}
-            <a href="{{ url_for('web.contest_list', page=paginated.prev_num, q=q) }}">Prev</a>
-        {% endif %}
+    <nav class="pagination" aria-label="Contest pages">
+        {% if paginated.has_prev %}<a href="{{ url_for('web.contest_list', page=paginated.prev_num, q=q) }}">{{ t('pagination.prev') }}</a>{% endif %}
         {% for p in range(1, paginated.pages + 1) %}
-            {% if p == paginated.page %}
-                <span class="current">{{ p }}</span>
-            {% else %}
-                <a href="{{ url_for('web.contest_list', page=p, q=q) }}">{{ p }}</a>
-            {% endif %}
+            {% if p == paginated.page %}<span class="current">{{ p }}</span>
+            {% else %}<a href="{{ url_for('web.contest_list', page=p, q=q) }}">{{ p }}</a>{% endif %}
         {% endfor %}
-        {% if paginated.has_next %}
-            <a href="{{ url_for('web.contest_list', page=paginated.next_num, q=q) }}">Next</a>
-        {% endif %}
-    </div>
+        {% if paginated.has_next %}<a href="{{ url_for('web.contest_list', page=paginated.next_num, q=q) }}">{{ t('pagination.next') }}</a>{% endif %}
+    </nav>
     {% endif %}
-</div>
+</section>
 {% endblock %}

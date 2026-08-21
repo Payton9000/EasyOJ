@@ -2,11 +2,15 @@ import json
 import time
 
 from app import db
-from tests.utils import create_user, create_problem, write_testcases
+from tests.utils import create_problem
+from tests.utils import create_user
+from tests.utils import write_testcases
 
 
 def _login(client, username, password):
-    return client.post('/login', data={'username': username, 'password': password}, follow_redirects=True)
+    return client.post(
+        '/login', data={'username': username, 'password': password}, follow_redirects=True
+    )
 
 
 def _poll_submission(client, submission_id, timeout_s=10):
@@ -23,7 +27,7 @@ def _poll_submission(client, submission_id, timeout_s=10):
 
 def test_submit_ac_and_wa(client, app):
     with app.app_context():
-        user = create_user('tester1', 'tester1@example.com')
+        create_user('tester1', 'tester1@example.com')
         problem_id = create_problem('Sum Test').id
         write_testcases(app.config['BASE_DIR'], problem_id, [('1 2', '3'), ('10 20', '30')])
 
@@ -45,7 +49,16 @@ if nums:
     submission_id = res.get_json()['data']['submission_id']
 
     result = _poll_submission(client, submission_id)
-    assert result['status'] == 'AC'
+    if result['status'] != 'AC':
+        print('AC TEST FAILED. Result:', result)
+        with app.app_context():
+            from app.models.judge_task import JudgeTask
+
+            task = JudgeTask.query.filter_by(submission_id=submission_id).first()
+            if task and task.debug_log_path:
+                with open(task.debug_log_path, encoding='utf-8') as f:
+                    print('Debug log:', f.read())
+        assert False, f"Failed with {result['status']}"
 
     code_wa = """
 print(0)
@@ -61,3 +74,58 @@ print(0)
 
     result = _poll_submission(client, submission_id)
     assert result['status'] == 'WA'
+
+
+def test_submit_tle(client, app):
+    with app.app_context():
+        create_user('tester_tle', 'tester_tle@example.com')
+        problem = create_problem('TLE Test')
+        problem.time_limit = 1000  # 1 second limit
+        db.session.commit()
+        problem_id = problem.id
+        write_testcases(app.config['BASE_DIR'], problem_id, [('1 2', '3')])
+
+    _login(client, 'tester_tle', 'password123')
+
+    code_tle = """
+import time
+while True:
+    pass
+"""
+
+    res = client.post(
+        f'/api/submit/{problem_id}',
+        data=json.dumps({'language': 'python', 'code': code_tle}),
+        content_type='application/json',
+    )
+    assert res.status_code == 200
+    submission_id = res.get_json()['data']['submission_id']
+
+    result = _poll_submission(client, submission_id, timeout_s=15)
+    assert result['status'] == 'TLE'
+
+
+def test_submit_re_or_ce(client, app):
+    with app.app_context():
+        create_user('tester_re', 'tester_re@example.com')
+        problem_id = create_problem('RE Test').id
+        write_testcases(app.config['BASE_DIR'], problem_id, [('1 2', '3')])
+
+    _login(client, 'tester_re', 'password123')
+
+    code_re = """
+def bad_func()
+    print("missing colon")
+"""
+    res = client.post(
+        f'/api/submit/{problem_id}',
+        data=json.dumps({'language': 'python', 'code': code_re}),
+        content_type='application/json',
+    )
+    if res.status_code != 200:
+        print(res.get_json())
+    assert res.status_code == 200
+    submission_id = res.get_json()['data']['submission_id']
+
+    result = _poll_submission(client, submission_id)
+    assert result['status'] in ('RE', 'CE')

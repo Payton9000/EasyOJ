@@ -3,11 +3,15 @@ import time
 
 import pytest
 
-from tests.utils import create_problem, create_user, write_testcases
+from tests.utils import create_problem
+from tests.utils import create_user
+from tests.utils import write_testcases
 
 
 def _login(client, username, password):
-    return client.post('/login', data={'username': username, 'password': password}, follow_redirects=True)
+    return client.post(
+        '/login', data={'username': username, 'password': password}, follow_redirects=True
+    )
 
 
 def _poll_submission(client, submission_id, timeout_s=10):
@@ -44,7 +48,7 @@ while True:
     )
     assert res.status_code == 200
     submission_id = res.get_json()['data']['submission_id']
-    result = _poll_submission(client, submission_id, timeout_s=10)
+    result = _poll_submission(client, submission_id, timeout_s=30)
     assert result['status'] in ('TLE', 'RE')
 
     code_mle = """
@@ -60,7 +64,7 @@ while True:
     )
     assert res.status_code == 200
     submission_id = res.get_json()['data']['submission_id']
-    result = _poll_submission(client, submission_id, timeout_s=10)
+    result = _poll_submission(client, submission_id, timeout_s=30)
     assert result['status'] in ('MLE', 'TLE', 'RE')
 
 

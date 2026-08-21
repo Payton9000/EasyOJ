@@ -1,31 +1,29 @@
 {% extends "base.html" %}
-{% block title %}Register - OJ System{% endblock %}
+{% block title %}{{ t('auth.register') }} - EasyOJ{% endblock %}
 {% block content %}
-<div style="max-width:420px; margin:60px auto;">
-    <div class="card">
-        <h2 style="text-align:center; margin-bottom:24px; color:#e94560;">Register</h2>
-        <form method="POST" action="/register">
-            <div class="form-group">
-                <label for="username">Username</label>
-                <input type="text" id="username" name="username" placeholder="Choose a username" required autofocus>
-            </div>
-            <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email" placeholder="Enter your email" required>
-            </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" placeholder="At least 6 characters" required>
-            </div>
-            <div class="form-group">
-                <label for="confirm_password">Confirm Password</label>
-                <input type="password" id="confirm_password" name="confirm_password" placeholder="Repeat password" required>
-            </div>
-            <button type="submit" class="btn btn-primary" style="width:100%; margin-top:8px;">Register</button>
-        </form>
-        <p style="text-align:center; margin-top:16px; color:#aaa;">
-            Already have an account? <a href="/login">Login</a>
-        </p>
-    </div>
-</div>
+<section class="auth-card card">
+    <h1 class="page-title">{{ t('auth.register') }}</h1>
+    <form method="POST" action="{{ url_for('web.register') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label for="username">{{ t('auth.username') }}</label>
+            <input type="text" id="username" name="username" minlength="3" maxlength="32" autocomplete="username" required autofocus>
+            <div class="form-help">{{ t('auth.register.help') }}</div>
+        </div>
+        <div class="form-group">
+            <label for="email">{{ t('auth.email') }}</label>
+            <input type="email" id="email" name="email" maxlength="120" autocomplete="email" required>
+        </div>
+        <div class="form-group">
+            <label for="password">{{ t('auth.password') }}</label>
+            <input type="password" id="password" name="password" minlength="8" autocomplete="new-password" required>
+        </div>
+        <div class="form-group">
+            <label for="confirm_password">{{ t('auth.confirm_password') }}</label>
+            <input type="password" id="confirm_password" name="confirm_password" minlength="8" autocomplete="new-password" required>
+        </div>
+        <button class="btn btn-primary" type="submit">{{ t('auth.register.create') }}</button>
+    </form>
+    <p class="auth-links">{{ t('auth.register.already') }} <a href="{{ url_for('web.login') }}">{{ t('auth.login') }}</a>.</p>
+</section>
 {% endblock %}

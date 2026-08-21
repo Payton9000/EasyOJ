@@ -1,13 +1,16 @@
 import logging
-import os
 import subprocess
 import threading
 import time
+
+from app.judge.languages import DEFAULT_LANGUAGE_SPECS
+from app.judge.languages import build_run_command
 
 logger = logging.getLogger(__name__)
 
 try:
     import psutil
+
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
@@ -90,26 +93,81 @@ class Executor:
         if self.app:
             return self.app.config
         from flask import current_app
+
         return current_app.config
+
+    def build_run_command(self, work_dir, language, memory_limit_mb=256):
+        try:
+            config = self._get_config()
+        except RuntimeError:
+            config = {'SUPPORTED_LANGUAGES': DEFAULT_LANGUAGE_SPECS}
+        return build_run_command(
+            config,
+            work_dir,
+            language,
+            config.get('COMPILER_PATHS', {}),
+            memory_limit_mb,
+        )
 
     def execute(self, work_dir, language, input_data, time_limit, memory_limit) -> dict:
         cfg = self._get_config()
-        compiler_paths = cfg.get('COMPILER_PATHS', {})
 
         time_limit = max(1, int(time_limit))
         memory_limit = max(1, int(memory_limit))
 
-        if language == 'cpp':
-            cmd = [os.path.join(work_dir, 'main.exe')]
-        elif language == 'java':
-            java = compiler_paths.get('java', 'java')
-            cmd = [java, '-cp', work_dir, 'Main']
-        elif language == 'python':
-            python = compiler_paths.get('python', 'python')
-            cmd = [python, os.path.join(work_dir, 'main.py')]
-        else:
-            return {'status': 'RE', 'output': '', 'time_used': 0, 'memory_used': 0,
-                    'error': f'Unknown language: {language}'}
+        try:
+            cmd = self.build_run_command(work_dir, language, memory_limit)
+        except ValueError as exc:
+            return {
+                'status': 'RE',
+                'output': '',
+                'time_used': 0,
+                'memory_used': 0,
+                'error': str(exc),
+            }
+        compiler_paths = cfg.get('COMPILER_PATHS', {})
+
+        sandbox_enabled = bool(cfg.get('SANDBOX_ENABLED'))
+        if sandbox_enabled:
+            try:
+                from app.judge.sandbox import SandboxRunner
+                from app.judge.sandbox import is_supported
+
+                if not is_supported():
+                    return {
+                        'status': 'SystemError',
+                        'output': '',
+                        'time_used': 0,
+                        'memory_used': 0,
+                        'error': 'Sandbox enabled but not supported on this host',
+                    }
+                runner = SandboxRunner(cfg)
+                return runner.run(
+                    cmd,
+                    work_dir,
+                    input_data or '',
+                    time_limit,
+                    memory_limit,
+                    compiler_paths,
+                    language,
+                )
+            except Exception as e:
+                return {
+                    'status': 'SystemError',
+                    'output': '',
+                    'time_used': 0,
+                    'memory_used': 0,
+                    'error': f'Sandbox failure: {e}',
+                }
+
+        if cfg.get('JUDGE_REQUIRE_SANDBOX', True):
+            return {
+                'status': 'SystemError',
+                'output': '',
+                'time_used': 0,
+                'memory_used': 0,
+                'error': 'Sandbox is required and cannot be disabled for this environment.',
+            }
 
         kwargs = {
             'stdin': subprocess.PIPE,
@@ -117,6 +175,7 @@ class Executor:
             'stderr': subprocess.PIPE,
             'text': True,
             'cwd': work_dir,
+            'shell': False,
         }
         # Windows-specific
         if hasattr(subprocess, 'CREATE_NEW_PROCESS_GROUP'):
@@ -136,8 +195,7 @@ class Executor:
             start_ts = time.monotonic()
 
             try:
-                stdout, stderr = process.communicate(
-                    input=input_data, timeout=time_limit / 1000.0)
+                stdout, stderr = process.communicate(input=input_data, timeout=time_limit / 1000.0)
                 output = stdout
                 error = stderr
             except subprocess.TimeoutExpired:
@@ -159,8 +217,13 @@ class Executor:
                 status = 'RE'
 
         except FileNotFoundError as e:
-            return {'status': 'RE', 'output': '', 'time_used': 0, 'memory_used': 0,
-                    'error': f'Executable not found: {e}'}
+            return {
+                'status': 'RE',
+                'output': '',
+                'time_used': 0,
+                'memory_used': 0,
+                'error': f'Executable not found: {e}',
+            }
         except Exception as e:
             return {'status': 'RE', 'output': '', 'time_used': 0, 'memory_used': 0, 'error': str(e)}
 

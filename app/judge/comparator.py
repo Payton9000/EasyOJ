@@ -12,6 +12,7 @@ class Comparator:
 
     def compare_float(self, user_output: str, expected_output: str, precision: int = 6) -> bool:
         import re
+
         user_tokens = re.split(r'\s+', user_output.strip())
         expected_tokens = re.split(r'\s+', expected_output.strip())
         if len(user_tokens) != len(expected_tokens):

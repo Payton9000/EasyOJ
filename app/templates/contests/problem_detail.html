@@ -1,50 +1,39 @@
 {% extends "base.html" %}
-{% block title %}Problem {{ contest_problem.alias }} - {{ problem.title }}{% endblock %}
+{% block title %}{{ contest_problem.alias }} - {{ problem.title }} - EasyOJ{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/codemirror/easyoj-editor.css') }}">
+<script src="{{ url_for('static', filename='vendor/codemirror/easyoj-editor.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/code_workspace.js') }}" defer></script>
+{% endblock %}
 {% block content %}
-<div class="card">
-    <h2 style="color: var(--brand);">Problem {{ contest_problem.alias }}: {{ problem.title }}</h2>
-    <div style="display:flex; gap:24px; margin:12px 0 20px; color:var(--text-muted); font-size:0.9rem;">
-        <span>⏱ Time Limit: <strong style="color:var(--text);">{{ problem.time_limit }}ms</strong></span>
-        <span>💾 Memory Limit: <strong style="color:var(--text);">{{ problem.memory_limit }}MB</strong></span>
-        <span>📊 Difficulty: <strong class="diff-{{ problem.difficulty }}">{{ problem.difficulty | capitalize }}</strong></span>
+{% set workspace_key = 'contest:' ~ contest.id ~ ':' ~ contest_problem.alias %}
+{% if contest.status == 'Ended' %}
+<main class="page-shell contest-read-only" data-contest-read-only>
+    <p class="workspace-kicker">{{ t('workspace.contest') }} · {{ t('contests.ended') }}</p>
+    <h1 class="page-title">{{ contest_problem.alias }}: {{ problem.title }}</h1>
+    <div class="problem-meta workspace-meta">
+        <span>{{ t('workspace.time_limit') }}: <strong>{{ problem.time_limit }} ms</strong></span>
+        <span>{{ t('workspace.memory_limit') }}: <strong>{{ problem.memory_limit }} MB</strong></span>
+        {% if problem.source %}<span>{{ t('workspace.source') }}: <strong>{{ problem.source }}</strong></span>{% endif %}
     </div>
-    <h3 style="color:var(--text-muted); margin-bottom:8px;">Description</h3>
-    <div style="line-height:1.7; margin-bottom:16px;">{{ problem.description | safe }}</div>
+    <section class="problem-section">
+        <h2>{{ t('workspace.description') }}</h2>
+        <div class="problem-text">{{ problem.description }}</div>
+    </section>
     {% if problem.input_description %}
-    <h3 style="color:var(--text-muted); margin-bottom:8px;">Input</h3>
-    <div style="line-height:1.7; margin-bottom:16px;">{{ problem.input_description | safe }}</div>
+    <section class="problem-section"><h2>{{ t('workspace.input') }}</h2><div class="problem-text">{{ problem.input_description }}</div></section>
     {% endif %}
     {% if problem.output_description %}
-    <h3 style="color:var(--text-muted); margin-bottom:8px;">Output</h3>
-    <div style="line-height:1.7; margin-bottom:16px;">{{ problem.output_description | safe }}</div>
+    <section class="problem-section"><h2>{{ t('workspace.expected_output') }}</h2><div class="problem-text">{{ problem.output_description }}</div></section>
     {% endif %}
-    {% if problem.sample_input %}
-    <h3 style="color:var(--text-muted); margin-bottom:8px;">Sample Input</h3>
-    <pre>{{ problem.sample_input }}</pre>
-    {% endif %}
-    {% if problem.sample_output %}
-    <h3 style="color:var(--text-muted); margin:16px 0 8px;">Sample Output</h3>
-    <pre>{{ problem.sample_output }}</pre>
-    {% endif %}
-</div>
-
-<div class="card">
-    <h3>Submit</h3>
-    <form method="POST" action="{{ url_for('web.contest_submit', contest_id=contest.id, alias=contest_problem.alias) }}">
-        <div class="form-group">
-            <label>Language</label>
-            <select name="language" required>
-                {% for key, lang in supported_languages.items() %}
-                <option value="{{ key }}">{{ lang.name }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="form-group">
-            <label>Code</label>
-            <textarea name="code" rows="12" required></textarea>
-        </div>
-        <button class="btn btn-primary" type="submit">Submit</button>
-        <a href="{{ url_for('web.contest_detail', contest_id=contest.id) }}" class="btn btn-secondary" style="margin-left:8px;">Back</a>
-    </form>
-</div>
+    {% if problem.sample_input %}<section class="problem-section"><h2>{{ t('workspace.sample_input') }}</h2><pre>{{ problem.sample_input }}</pre></section>{% endif %}
+    {% if problem.sample_output %}<section class="problem-section"><h2>{{ t('workspace.sample_output') }}</h2><pre>{{ problem.sample_output }}</pre></section>{% endif %}
+    <p><a class="btn btn-primary" href="{{ url_for('web.problem_detail', problem_id=problem.id) }}">{{ t('workspace.practice') }}</a></p>
+</main>
+{% else %}
+{% set submit_action = url_for('web.contest_submit', contest_id=contest.id, alias=contest_problem.alias) %}
+{% set run_url = url_for('api.api_practice_run', problem_id=problem.id) %}
+{% set workspace_context_label = t('workspace.contest') %}
+{% include 'problems/_workspace.html' %}
+{% endif %}
 {% endblock %}

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}{{ error_code }} - EasyOJ{% endblock %}
+{% block content %}
+<div class="error-page card">
+    <h1 class="error-code">{{ error_code }}</h1>
+    <p class="error-message">{{ error_message }}</p>
+    <div class="button-row">
+        <a href="{{ url_for('web.problem_list') }}" class="btn btn-primary">{{ t('error.back_home') }}</a>
+    </div>
+</div>
+{% endblock %}

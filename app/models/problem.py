@@ -1,13 +1,16 @@
 import os
 from datetime import datetime
+
 from app import db
 
 
 def _get_base_dir():
     try:
         from flask import current_app
-        return current_app.config.get('BASE_DIR', os.path.abspath(
-            os.path.join(os.path.dirname(__file__), '..', '..', '..')))
+
+        return current_app.config.get(
+            'BASE_DIR', os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+        )
     except RuntimeError:
         return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
@@ -53,9 +56,9 @@ class Problem(db.Model):
             out_path = os.path.join(tc_dir, out_file)
             if not os.path.isfile(out_path):
                 continue
-            with open(in_path, 'r', encoding='utf-8') as f:
+            with open(in_path, encoding='utf-8') as f:
                 input_str = f.read()
-            with open(out_path, 'r', encoding='utf-8') as f:
+            with open(out_path, encoding='utf-8') as f:
                 expected_str = f.read()
             result.append((input_str, expected_str))
         return result

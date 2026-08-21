@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from app import db
 
 
@@ -9,12 +10,21 @@ class Submission(db.Model):
         db.Index('idx_status', 'status'),
         db.Index('idx_contest_problem_status', 'contest_id', 'problem_id', 'status'),
         db.Index('idx_contest_user_submitted_at', 'contest_id', 'user_id', 'submitted_at'),
+        db.Index(
+            'uq_contest_submission_client_token',
+            'user_id',
+            'contest_id',
+            'problem_id',
+            'client_token',
+            unique=True,
+        ),
     )
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     problem_id = db.Column(db.Integer, db.ForeignKey('problem.id'), nullable=False)
     contest_id = db.Column(db.Integer, db.ForeignKey('contest.id'))
+    client_token = db.Column(db.String(128), nullable=True)
     language = db.Column(db.String(20), nullable=False)
     code = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(30), default='Pending')

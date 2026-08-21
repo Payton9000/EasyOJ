@@ -1,4 +1,6 @@
-from tests.utils import create_problem, create_user, write_testcases
+from tests.utils import create_problem
+from tests.utils import create_user
+from tests.utils import write_testcases
 
 
 def test_api_ranking_endpoint(client, app):

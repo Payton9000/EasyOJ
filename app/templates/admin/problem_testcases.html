@@ -1,55 +1,7 @@
 {% extends "admin/admin_base.html" %}
-
 {% block admin_content %}
-<h2>{{ problem.title }} - 测试用例管理</h2>
-<p>题目 ID: {{ problem.id }}</p>
-
-<div style="background-color: var(--surface); padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid var(--border);">
-    <h3>上传测试用例</h3>
-    <form method="POST" enctype="multipart/form-data" style="display: flex; gap: 10px; flex-wrap: wrap;">
-        <div>
-            <label for="input_file">输入文件 (.in)</label>
-            <input type="file" id="input_file" name="input_file" accept=".in" required style="margin: 5px 0; display: block;">
-        </div>
-        <div>
-            <label for="output_file">输出文件 (.out)</label>
-            <input type="file" id="output_file" name="output_file" accept=".out" required style="margin: 5px 0; display: block;">
-        </div>
-        <button type="submit" class="btn btn-primary">上传</button>
-    </form>
-</div>
-
-<h3>已有测试用例 ({{ testcases|length }})</h3>
-{% if testcases %}
-<table>
-    <thead>
-        <tr>
-            <th>编号</th>
-            <th>输入文件大小</th>
-            <th>输出文件大小</th>
-            <th>操作</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for tc in testcases %}
-        <tr>
-            <td>#{{ tc.num }}</td>
-            <td>{{ (tc.in_size / 1024)|round(2) }} KB</td>
-            <td>{{ (tc.out_size / 1024)|round(2) }} KB</td>
-            <td>
-                <form method="POST" action="{{ url_for('admin.delete_testcase', problem_id=problem.id, tc_num=tc.num) }}" style="display: inline;">
-                    <button type="submit" class="btn btn-danger btn-small" onclick="return confirm('确定删除此测试用例？')">删除</button>
-                </form>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-{% else %}
-<p style="color: var(--text-muted);">暂无测试用例</p>
-{% endif %}
-
-<div style="margin-top: 20px;">
-    <a href="{{ url_for('admin.problems_list') }}" class="btn btn-primary">返回题目列表</a>
-</div>
+<h2>{{ t('admin.testcases') }} - {{ problem.title }}</h2><p>{{ t('admin.problem_id') }}: {{ problem.id }}</p>
+<h3>{{ t('admin.upload_testcase') }}</h3><form method="POST" action="{{ url_for('admin.upload_testcase', problem_id=problem.id) }}" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>{{ t('admin.input_file') }}<input type="file" name="input_file" required></label><label>{{ t('admin.output_file') }}<input type="file" name="output_file" required></label><button type="submit" class="btn btn-primary">{{ t('admin.upload') }}</button></form>
+<h3>{{ t('admin.existing_testcases') }} ({{ testcases|length }})</h3>{% if testcases %}<table><thead><tr><th>{{ t('admin.case_number') }}</th><th>{{ t('admin.input_size') }}</th><th>{{ t('admin.output_size') }}</th><th>{{ t('admin.actions') }}</th></tr></thead><tbody>{% for tc in testcases %}<tr><td>{{ tc.num }}</td><td>{{ tc.in_size }}</td><td>{{ tc.out_size }}</td><td><form method="POST" action="{{ url_for('admin.delete_testcase', problem_id=problem.id, tc_num=tc.num) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="btn btn-danger btn-small" onclick="return confirm('{{ t('admin.confirm_remove') }}')">{{ t('admin.delete') }}</button></form></td></tr>{% endfor %}</tbody></table>{% else %}<p>{{ t('admin.empty_testcases') }}</p>{% endif %}
+<a href="{{ url_for('admin.problems_list') }}" class="btn btn-primary">{{ t('admin.back_dashboard') }}</a>
 {% endblock %}

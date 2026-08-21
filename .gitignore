@@ -5,15 +5,22 @@ __pycache__/
 *.pyd
 .venv/
 .pytest_cache/
+.ruff_cache/
+.superpowers/
+/frontend/node_modules/
 
 # Environment and local settings
 .env
 *.log
 
 # Runtime data
-/data/database.db
+/data/*.db
+/data/*.db-shm
+/data/*.db-wal
+/data/backups/
 /data/temp/
 /data/submissions/
+/data/judge_logs/
 /data/manual_ui_runs/
 
 # Generated test artifacts
@@ -23,6 +30,7 @@ __pycache__/
 
 # Toolchains and deploy temp
 /toolchain/
+/runtime/
 /.deploy_tmp/
 /OJ_System/
 

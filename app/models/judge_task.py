@@ -1,12 +1,11 @@
 from datetime import datetime
+
 from app import db
 
 
 class JudgeTask(db.Model):
     __tablename__ = 'judge_task'
-    __table_args__ = (
-        db.UniqueConstraint('submission_id', name='uq_judge_task_submission'),
-    )
+    __table_args__ = (db.UniqueConstraint('submission_id', name='uq_judge_task_submission'),)
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     submission_id = db.Column(db.Integer, db.ForeignKey('submission.id'), nullable=False)

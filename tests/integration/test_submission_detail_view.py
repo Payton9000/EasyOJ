@@ -3,11 +3,14 @@ from pathlib import Path
 
 from app import db
 from app.models.submission import Submission
-from tests.utils import create_problem, create_user
+from tests.utils import create_problem
+from tests.utils import create_user
 
 
 def _login(client, username, password):
-    return client.post('/login', data={'username': username, 'password': password}, follow_redirects=True)
+    return client.post(
+        '/login', data={'username': username, 'password': password}, follow_redirects=True
+    )
 
 
 def test_submission_detail_shows_case_trends_and_diff(client, app):
@@ -88,7 +91,7 @@ def test_submission_detail_structures_compile_errors(client, app):
             language='cpp',
             code='int main(){return ;}',
             status='CE',
-            error_message='main.cpp:3:5: error: expected primary-expression before \'}\' token',
+            error_message="main.cpp:3:5: error: expected primary-expression before '}' token",
         )
         db.session.add(submission)
         db.session.commit()

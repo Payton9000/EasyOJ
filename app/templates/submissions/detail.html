@@ -1,111 +1,68 @@
 {% extends "base.html" %}
-{% block title %}Submission #{{ submission.id }} - OJ System{% endblock %}
+{% block title %}{{ t('submission.number', number=submission.id) }} - EasyOJ{% endblock %}
+{% if submission.status in ('Pending', 'Queued', 'Judging') %}
+{% block extra_head %}<meta http-equiv="refresh" content="3">{% endblock %}
+{% endif %}
 {% block content %}
-<div class="card">
-    <h2 style="color:#e94560; margin-bottom:16px;">Submission #{{ submission.id }}</h2>
-    <table style="width:auto; margin-bottom:20px;">
-        <tr><th>Problem</th><td><a href="/problem/{{ submission.problem_id }}">{{ problem.title if problem else submission.problem_id }}</a></td></tr>
-        <tr><th>Language</th><td>{{ submission.language }}</td></tr>
-        <tr><th>Status</th><td><span class="status-{{ submission.status }}">{{ submission.status }}</span></td></tr>
-        <tr><th>Time</th><td>{{ submission.time_used ~ 'ms' if submission.time_used is not none else '-' }}</td></tr>
-        <tr><th>Memory</th><td>{{ (submission.memory_used // 1024) ~ 'MB' if submission.memory_used else '-' }}</td></tr>
-        <tr><th>Test Cases</th><td>{{ submission.test_case_passed }} / {{ submission.test_case_total }}</td></tr>
-        <tr><th>Submitted</th><td>{{ submission.submitted_at.strftime('%Y-%m-%d %H:%M:%S') if submission.submitted_at else '-' }}</td></tr>
-        <tr><th>Judged</th><td>{{ submission.judged_at.strftime('%Y-%m-%d %H:%M:%S') if submission.judged_at else '-' }}</td></tr>
-    </table>
-
-    {% if case_details %}
-    <h3 style="color:#aaa; margin:16px 0 8px;">Test Case Details</h3>
-    <table>
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>Status</th>
-                <th>Time</th>
-                <th>Time Trend</th>
-                <th>Memory</th>
-                <th>Memory Trend</th>
-                <th>Error</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for c in case_details %}
-            <tr>
-                <td>{{ c.case }}</td>
-                <td><span class="status-{{ c.status }}">{{ c.status }}</span></td>
-                <td>{{ c.time_ms }}ms</td>
-                <td>
-                    <div style="height:8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; min-width: 120px;">
-                        <div style="height: 100%; width: {{ c.time_pct }}%; background: var(--info);"></div>
-                    </div>
-                </td>
-                <td>{{ c.memory_mb }}MB</td>
-                <td>
-                    <div style="height:8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; min-width: 120px;">
-                        <div style="height: 100%; width: {{ c.memory_pct }}%; background: var(--warn);"></div>
-                    </div>
-                </td>
-                <td>{{ c.error or '-' }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% endif %}
-
-    {% if failed_case and diff_rows %}
-    <h3 style="color:#aaa; margin:16px 0 8px;">Failed Case Diff (Case #{{ failed_case.case }})</h3>
-    <table>
-        <thead>
-            <tr>
-                <th style="width: 50%;">Expected</th>
-                <th style="width: 50%;">Your Output</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for row in diff_rows %}
-            <tr style="{% if row.kind in ['replace', 'delete', 'insert'] %}background: rgba(179, 65, 52, 0.12);{% endif %}">
-                <td><pre style="margin:0; padding:8px;">{{ row.expected }}</pre></td>
-                <td><pre style="margin:0; padding:8px;">{{ row.actual }}</pre></td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% endif %}
-
-    {% if compile_error_entries %}
-    <h3 style="color:#aaa; margin:16px 0 8px;">Structured Compile Errors</h3>
-    <table>
-        <thead>
-            <tr>
-                <th>Line</th>
-                <th>Column</th>
-                <th>Level</th>
-                <th>Message</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for err in compile_error_entries %}
-            <tr>
-                <td>{{ err.line or '-' }}</td>
-                <td>{{ err.column or '-' }}</td>
-                <td>{{ err.level }}</td>
-                <td>{{ err.message }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    <h4 style="color:#aaa; margin:12px 0 8px;">Raw Compiler Output</h4>
-    <pre style="color:#e94560;">{{ submission.error_message }}</pre>
-    {% elif submission.error_message %}
-    <h3 style="color:#aaa; margin-bottom:8px;">Error Message</h3>
-    <pre style="color:#e94560;">{{ submission.error_message }}</pre>
-    {% endif %}
-
-    <h3 style="color:#aaa; margin:16px 0 8px;">Code ({{ submission.language }})</h3>
-    <pre>{{ submission.code }}</pre>
-    <div style="margin-top:16px;">
-        <a href="/submissions" class="btn btn-secondary">My Submissions</a>
-        <a href="/problem/{{ submission.problem_id }}/submit" class="btn btn-primary" style="margin-left:8px;">Submit Again</a>
+<article class="card">
+    <div class="page-heading"><h1 class="page-title">{{ t('submission.number', number=submission.id) }}</h1><span class="status-{{ submission.status }}" data-status="{{ submission.status }}">{{ t('submission.status.' ~ submission.status) }}</span></div>
+    <div class="table-wrap">
+        <table class="summary-table">
+            <tr><th>{{ t('submissions.problem') }}</th><td><a href="{{ url_for('web.problem_detail', problem_id=submission.problem_id) }}">{{ problem.title if problem else submission.problem_id }}</a></td></tr>
+            <tr><th>{{ t('submissions.language') }}</th><td>{{ submission.language }}</td></tr>
+            <tr><th>{{ t('submissions.status') }}</th><td><span class="status-{{ submission.status }}" data-status="{{ submission.status }}">{{ t('submission.status.' ~ submission.status) }}</span></td></tr>
+            <tr><th>{{ t('submissions.time') }}</th><td>{{ submission.time_used ~ ' ms' if submission.time_used is not none else '-' }}</td></tr>
+            <tr><th>{{ t('submissions.memory') }}</th><td>{{ (submission.memory_used // 1024) ~ ' MB' if submission.memory_used else '-' }}</td></tr>
+            <tr><th>{{ t('submissions.test_cases') }}</th><td>{{ submission.test_case_passed }} / {{ submission.test_case_total }}</td></tr>
+            <tr><th>{{ t('submissions.submitted_at') }}</th><td>{{ (submission.submitted_at | local_datetime('%Y-%m-%d %H:%M:%S')) if submission.submitted_at else '-' }}</td></tr>
+            <tr><th>{{ t('submissions.judged_at') }}</th><td>{{ (submission.judged_at | local_datetime('%Y-%m-%d %H:%M:%S')) if submission.judged_at else '-' }}</td></tr>
+        </table>
     </div>
-</div>
+    {% if case_details %}
+    <section class="problem-section">
+        <h2>{{ t('submissions.test_case_details') }}</h2>
+        <div class="table-wrap"><table>
+            <thead><tr><th>#</th><th>{{ t('submissions.status') }}</th><th>{{ t('submissions.time') }}</th><th>{{ t('submissions.time_trend') }}</th><th>{{ t('submissions.memory') }}</th><th>{{ t('submissions.memory_trend') }}</th><th>{{ t('submissions.error') }}</th></tr></thead>
+            <tbody>
+            {% for c in case_details %}
+                <tr><td>{{ c.case }}</td><td><span class="status-{{ c.status }}" data-status="{{ c.status }}">{{ t('submission.status.' ~ c.status) }}</span></td><td>{{ c.time_ms }} ms</td>
+                    <td><div class="trend-bar"><span style="width: {{ c.time_pct }}%"></span></div></td>
+                    <td>{{ c.memory_mb }} MB</td><td><div class="trend-bar memory"><span style="width: {{ c.memory_pct }}%"></span></div></td><td>{{ c.error or '-' }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table></div>
+    </section>
+    {% endif %}
+    {% if failed_case and diff_rows %}
+    <section class="problem-section"><h2>{{ t('submissions.failed_diff', case=failed_case.case) }}</h2>
+        <div class="table-wrap"><table class="diff-table"><thead><tr><th>{{ t('submissions.expected') }}</th><th>{{ t('submissions.your_output') }}</th></tr></thead><tbody>
+        {% for row in diff_rows %}<tr><td><pre>{{ row.expected }}</pre></td><td><pre>{{ row.actual }}</pre></td></tr>{% endfor %}
+        </tbody></table></div>
+    </section>
+    {% endif %}
+    {% if compile_error_entries %}
+    <section class="problem-section"><h2>{{ t('submissions.structured_compile_errors') }}</h2>
+        <div class="table-wrap"><table><thead><tr><th>{{ t('submissions.line') }}</th><th>{{ t('submissions.column') }}</th><th>{{ t('submissions.level') }}</th><th>{{ t('submissions.message') }}</th></tr></thead><tbody>
+        {% for err in compile_error_entries %}<tr><td>{{ err.line or '-' }}</td><td>{{ err.column or '-' }}</td><td>{{ err.level }}</td><td>{{ err.message }}</td></tr>{% endfor %}
+        </tbody></table></div>
+        <h3>{{ t('submissions.raw_compiler_output') }}</h3><pre>{{ submission.error_message }}</pre>
+    </section>
+    {% elif submission.error_message %}
+    <section class="problem-section"><h2>{{ t('submissions.error_message') }}</h2><pre>{{ submission.error_message }}</pre></section>
+    {% endif %}
+    <section class="problem-section"><h2>{{ t('submissions.code') }} ({{ submission.language }})</h2><pre>{{ submission.code }}</pre></section>
+    <div class="button-row"><a href="{{ url_for('web.submission_list') }}" class="btn btn-secondary">{{ t('submissions.title') }}</a><a href="{{ url_for('web.problem_submit', problem_id=submission.problem_id) }}" class="btn btn-primary">{{ t('submissions.submit_again') }}</a></div>
+</article>
+<script>
+    (function () {
+        try {
+            var pending = sessionStorage.getItem('easyoj:submission-pending');
+            if (pending) {
+                sessionStorage.setItem('easyoj:submission-complete', pending);
+            }
+        } catch (error) {
+            // Draft cleanup is best effort and must never block viewing a submission.
+        }
+    }());
+</script>
 {% endblock %}

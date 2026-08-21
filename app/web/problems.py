@@ -1,17 +1,30 @@
-import os
 import json
+import os
 import re
 from difflib import SequenceMatcher
 
-from flask import (render_template, request, redirect, url_for, flash,
-                   current_app, abort)
-from flask_login import login_required, current_user
+from flask import abort
+from flask import current_app
+from flask import flash
+from flask import redirect
+from flask import render_template
+from flask import request
+from flask import url_for
+from flask_login import current_user
+from flask_login import login_required
 
 from app import db
+from app.i18n import translate as t
 from app.models.judge_task import JudgeTask
 from app.models.problem import Problem
 from app.models.submission import Submission
-from app.utils.file_utils import ensure_dir, get_submission_dir
+from app.services.submission_service import enqueue_submission
+from app.services.submission_service import find_active_contest_problem
+from app.services.submission_service import submission_is_in_active_contest
+from app.utils.file_utils import ensure_dir
+from app.utils.file_utils import get_submission_dir
+from app.utils.rate_limit import submission_allowed
+from app.utils.security import sanitize_code
 from app.web import web_bp
 
 
@@ -39,7 +52,7 @@ def _load_submission_judge_log(submission_id):
         return None
 
     try:
-        with open(log_path, 'r', encoding='utf-8') as handle:
+        with open(log_path, encoding='utf-8') as handle:
             payload = json.load(handle)
     except (OSError, json.JSONDecodeError):
         return None
@@ -62,17 +75,19 @@ def _normalize_case_logs(case_logs):
         max_memory = max(max_memory, memory_kb)
 
         raw_status = str(item.get('status') or 'UNKNOWN').upper()
-        normalized.append({
-            'case': _safe_int(item.get('case'), idx),
-            'raw_status': raw_status,
-            'status': 'AC' if raw_status == 'OK' else raw_status,
-            'time_ms': time_ms,
-            'memory_kb': memory_kb,
-            'memory_mb': round(memory_kb / 1024, 2) if memory_kb else 0,
-            'error': (item.get('error') or '').strip(),
-            'output_sample': item.get('output_sample') or '',
-            'expected_sample': item.get('expected_sample') or '',
-        })
+        normalized.append(
+            {
+                'case': _safe_int(item.get('case'), idx),
+                'raw_status': raw_status,
+                'status': 'AC' if raw_status == 'OK' else raw_status,
+                'time_ms': time_ms,
+                'memory_kb': memory_kb,
+                'memory_mb': round(memory_kb / 1024, 2) if memory_kb else 0,
+                'error': (item.get('error') or '').strip(),
+                'output_sample': item.get('output_sample') or '',
+                'expected_sample': item.get('expected_sample') or '',
+            }
+        )
 
     for item in normalized:
         item['time_pct'] = int(item['time_ms'] / max_time * 100) if max_time else 0
@@ -113,14 +128,16 @@ def _parse_compile_errors(error_message):
 
         if match:
             groups = match.groupdict()
-            entries.append({
-                'file': groups.get('file') or '',
-                'line': _safe_int(groups.get('line'), 0),
-                'column': _safe_int(groups.get('column'), 0),
-                'level': (groups.get('level') or 'error').lower(),
-                'message': (groups.get('message') or '').strip(),
-                'raw': line,
-            })
+            entries.append(
+                {
+                    'file': groups.get('file') or '',
+                    'line': _safe_int(groups.get('line'), 0),
+                    'column': _safe_int(groups.get('column'), 0),
+                    'level': (groups.get('level') or 'error').lower(),
+                    'message': (groups.get('message') or '').strip(),
+                    'raw': line,
+                }
+            )
 
     return entries[:100]
 
@@ -139,11 +156,13 @@ def _build_diff_rows(expected_sample, output_sample, max_rows=40):
             if i2 - i1 > 1:
                 rows.append({'kind': 'same', 'expected': '...', 'actual': '...'})
             elif i2 > i1:
-                rows.append({
-                    'kind': 'same',
-                    'expected': expected_lines[i1],
-                    'actual': output_lines[j1],
-                })
+                rows.append(
+                    {
+                        'kind': 'same',
+                        'expected': expected_lines[i1],
+                        'actual': output_lines[j1],
+                    }
+                )
             continue
 
         width = max(i2 - i1, j2 - j1)
@@ -152,11 +171,13 @@ def _build_diff_rows(expected_sample, output_sample, max_rows=40):
                 break
             expected_line = expected_lines[i1 + offset] if i1 + offset < i2 else ''
             output_line = output_lines[j1 + offset] if j1 + offset < j2 else ''
-            rows.append({
-                'kind': tag,
-                'expected': expected_line,
-                'actual': output_line,
-            })
+            rows.append(
+                {
+                    'kind': tag,
+                    'expected': expected_line,
+                    'actual': output_line,
+                }
+            )
 
     if not rows:
         rows.append({'kind': 'same', 'expected': '(empty)', 'actual': '(empty)'})
@@ -184,15 +205,20 @@ def problem_list():
         query = query.filter(Problem.title.ilike(f'%{q}%'))
 
     pagination = query.paginate(page=page, per_page=20, error_out=False)
-    return render_template('problems/list.html', problems=pagination.items,
-                           pagination=pagination, difficulty=difficulty, q=q)
+    return render_template(
+        'problems/list.html',
+        problems=pagination.items,
+        pagination=pagination,
+        difficulty=difficulty,
+        q=q,
+    )
 
 
 @web_bp.route('/problem/<int:problem_id>')
 def problem_detail(problem_id):
     problem = Problem.query.get_or_404(problem_id)
     if not problem.is_public and (not current_user.is_authenticated or not current_user.is_admin):
-        abort(403)
+        abort(404)
     return render_template('problems/detail.html', problem=problem)
 
 
@@ -200,6 +226,24 @@ def problem_detail(problem_id):
 @login_required
 def problem_submit(problem_id):
     problem = Problem.query.get_or_404(problem_id)
+    if not problem.is_public and not current_user.is_admin:
+        abort(404)
+
+    if problem.is_public:
+        active_contest_problem = find_active_contest_problem(problem_id, current_user.id)
+        if active_contest_problem:
+            flash(
+                t('flash.active_contest_problem'),
+                'warning',
+            )
+            return redirect(
+                url_for(
+                    'web.contest_problem_detail',
+                    contest_id=active_contest_problem.contest_id,
+                    alias=active_contest_problem.alias,
+                )
+            )
+
     supported_languages = current_app.config['SUPPORTED_LANGUAGES']
 
     if request.method == 'POST':
@@ -207,14 +251,54 @@ def problem_submit(problem_id):
         code = request.form.get('code', '')
 
         if language not in supported_languages:
-            flash('Unsupported language.', 'error')
-            return redirect(url_for('web.problem_submit', problem_id=problem_id))
+            flash(t('flash.unsupported_language'), 'error')
+            return render_template(
+                'problems/submit.html',
+                problem=problem,
+                supported_languages=supported_languages,
+                code=code,
+                language=language,
+            )
         if not code:
-            flash('Code cannot be empty.', 'error')
-            return redirect(url_for('web.problem_submit', problem_id=problem_id))
+            flash(t('flash.code_empty'), 'error')
+            return render_template(
+                'problems/submit.html',
+                problem=problem,
+                supported_languages=supported_languages,
+                code=code,
+                language=language,
+            )
         if len(code) > 64 * 1024:
-            flash('Code exceeds 64KB limit.', 'error')
-            return redirect(url_for('web.problem_submit', problem_id=problem_id))
+            flash(t('flash.code_limit'), 'error')
+            return render_template(
+                'problems/submit.html',
+                problem=problem,
+                supported_languages=supported_languages,
+                code=code,
+                language=language,
+            )
+
+        try:
+            sanitize_code(code, language)
+        except ValueError as e:
+            flash(str(e), 'error')
+            return render_template(
+                'problems/submit.html',
+                problem=problem,
+                supported_languages=supported_languages,
+                code=code,
+                language=language,
+            )
+
+        if not submission_allowed():
+            flash(t('flash.too_many_submissions'), 'error')
+            return render_template(
+                'problems/submit.html',
+                problem=problem,
+                supported_languages=supported_languages,
+                code=code,
+                language=language,
+            )
 
         submission = Submission(
             user_id=current_user.id,
@@ -230,21 +314,16 @@ def problem_submit(problem_id):
         sub_dir = get_submission_dir(submission.id)
         ensure_dir(sub_dir)
 
-        try:
-            success = current_app.judge_engine.submit_judge_task(submission.id)
-            if success:
-                flash('Submission received! Judging in progress...', 'success')
-            else:
-                submission.status = 'Failed'
-                db.session.commit()
-                flash('Judge queue is full. Please try again later.', 'error')
-        except Exception:
-            flash('Failed to submit code for judging. Please try again.', 'error')
+        if enqueue_submission(submission):
+            flash(t('flash.submission_received'), 'success')
+        else:
+            flash(t('flash.judge_unavailable'), 'error')
 
         return redirect(url_for('web.submission_detail', submission_id=submission.id))
 
-    return render_template('problems/submit.html', problem=problem,
-                           supported_languages=supported_languages)
+    return render_template(
+        'problems/submit.html', problem=problem, supported_languages=supported_languages
+    )
 
 
 @web_bp.route('/submission/<int:submission_id>')
@@ -260,18 +339,24 @@ def submission_detail(submission_id):
         (item for item in case_details if item.get('raw_status') not in ('OK', 'AC')),
         None,
     )
+
+    contest_is_running = submission_is_in_active_contest(submission)
+
     diff_rows = []
-    if failed_case and (failed_case.get('expected_sample') or failed_case.get('output_sample')):
-        diff_rows = _build_diff_rows(
-            failed_case.get('expected_sample', ''),
-            failed_case.get('output_sample', ''),
-        )
+    if failed_case and not contest_is_running:
+        expected = failed_case.get('expected_sample', '')
+        output = failed_case.get('output_sample', '')
+        if expected or output:
+            diff_rows = _build_diff_rows(expected, output)
+        failed_case['expected_sample'] = expected
+    elif failed_case and contest_is_running:
+        failed_case['expected_sample'] = ''
 
     compile_error_entries = []
     if submission.status == 'CE':
         compile_error_entries = _parse_compile_errors(submission.error_message)
 
-    problem = Problem.query.get(submission.problem_id)
+    problem = db.session.get(Problem, submission.problem_id)
     return render_template(
         'submissions/detail.html',
         submission=submission,
@@ -288,7 +373,9 @@ def submission_detail(submission_id):
 def submission_list():
     page = request.args.get('page', 1, type=int)
     query = Submission.query.filter_by(user_id=current_user.id).order_by(
-        Submission.submitted_at.desc())
+        Submission.submitted_at.desc()
+    )
     pagination = query.paginate(page=page, per_page=20, error_out=False)
-    return render_template('submissions/list.html', submissions=pagination.items,
-                           pagination=pagination)
+    return render_template(
+        'submissions/list.html', submissions=pagination.items, pagination=pagination
+    )

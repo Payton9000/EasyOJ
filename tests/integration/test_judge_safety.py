@@ -1,0 +1,27 @@
+import importlib
+
+import pytest
+
+
+def _executor_class():
+    try:
+        return importlib.import_module('app.judge.executor').Executor
+    except (ImportError, AttributeError) as exc:
+        pytest.fail(f'executor safety policy is not implemented yet: {exc}')
+
+
+def test_sandbox_enabled_host_without_support_fails_closed(app, monkeypatch, tmp_path):
+    Executor = _executor_class()
+    app.config.update(
+        {
+            'SANDBOX_ENABLED': True,
+            'JUDGE_REQUIRE_SANDBOX': True,
+            'COMPILER_PATHS': {'python': 'python'},
+        }
+    )
+    monkeypatch.setattr('app.judge.sandbox.is_supported', lambda: False)
+
+    result = Executor(app).execute(str(tmp_path), 'python', '', 100, 16)
+
+    assert result['status'] == 'SystemError'
+    assert 'sandbox' in result['error'].lower()

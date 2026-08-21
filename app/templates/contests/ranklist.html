@@ -1,57 +1,31 @@
 {% extends "base.html" %}
-{% block title %}Ranklist - OJ System{% endblock %}
+{% block title %}{{ contest.title }} ranklist - EasyOJ{% endblock %}
 {% block content %}
-<div class="card">
-    <h2>{{ contest.title }} - Ranklist</h2>
-
-    {% if contest.is_sealed and contest.status != 'Ended' %}
-    <div style="background-color: #ffcc66; color: #000; padding: 10px; border-radius: 6px; margin: 12px 0;">
-        ⚠️ 已封榜：比赛结束前排名不显示
-    </div>
-    {% endif %}
-
-    {% if ranklist %}
-    <table>
-        <thead>
-            <tr>
-                <th>Rank</th>
-                <th>User</th>
-                <th>Solved</th>
-                <th>Penalty</th>
-                {% for cp in contest.problem_list %}
-                <th title="{{ cp.problem.title }}">{{ cp.alias or 'Q' ~ loop.index }}</th>
-                {% endfor %}
-            </tr>
-        </thead>
-        <tbody>
+<section class="card">
+    <div class="page-heading"><h1 class="page-title">{{ contest.title }} | {{ t('contest.ranklist') }}</h1></div>
+    {% if ranklist_hidden %}
+    <div class="flash warning">{{ t('ranklist.sealed') }}</div>
+    {% elif ranklist %}
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>{{ t('ranklist.rank') }}</th><th>{{ t('ranklist.user') }}</th><th>{{ t('ranklist.solved') }}</th><th>{{ t('ranklist.penalty') }}</th>{% for cp in contest.problem_list %}<th title="{{ cp.problem.title }}">{{ cp.alias or 'Q' ~ loop.index }}</th>{% endfor %}</tr></thead>
+            <tbody>
             {% for item in ranklist %}
-            <tr>
-                <td style="font-weight: bold;">{{ item.rank }}</td>
-                <td>{{ item.user.username }}</td>
-                <td style="color: var(--success);">{{ item.solved }}</td>
-                <td>{{ item.penalty }}</td>
-                {% for cp in contest.problem_list %}
-                    {% set ps = item.problems.get(cp.id, {}) %}
-                    <td style="{% if ps.status == 'AC' %}background-color: rgba(56, 214, 138, 0.12); color: var(--success);{% elif ps.status == 'WA' %}background-color: rgba(215, 90, 74, 0.12); color: #d75a4a;{% endif %}">
-                        {% if ps.status == 'AC' %}
-                            ✓ {{ ps.ac_time }}
-                        {% elif ps.status == 'WA' %}
-                            ✗ {{ ps.attempts }}
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                {% endfor %}
-            </tr>
+                <tr>
+                    <td><strong>{{ item.rank }}</strong></td>
+                    <td>{{ item.user.username }}</td>
+                    <td><span class="status-AC">{{ item.solved }}</span></td>
+                    <td>{{ item.penalty }}</td>
+                    {% for cp in contest.problem_list %}
+                        {% set ps = item.problems.get(cp.id, {}) %}
+                        <td>{% if ps.status == 'AC' %}<span class="status-AC">AC {{ ps.ac_time }}</span>{% elif ps.status == 'WA' %}<span class="status-WA">WA {{ ps.attempts }}</span>{% else %}-{% endif %}</td>
+                    {% endfor %}
+                </tr>
             {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <p style="color: var(--text-muted);">No ranklist data.</p>
-    {% endif %}
-
-    <div style="margin-top: 16px;">
-        <a href="{{ url_for('web.contest_detail', contest_id=contest.id) }}" class="btn btn-secondary">Back to Contest</a>
+            </tbody>
+        </table>
     </div>
-</div>
+    {% else %}<div class="empty-state">{{ t('ranklist.empty') }}</div>{% endif %}
+    <div class="button-row"><a href="{{ url_for('web.contest_detail', contest_id=contest.id) }}" class="btn btn-secondary">{{ t('contest.back') }}</a></div>
+</section>
 {% endblock %}

@@ -1,66 +1,7 @@
 {% extends "admin/admin_base.html" %}
-
 {% block admin_content %}
-<h2>{{ contest.title }} - 题目管理</h2>
-
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
-    <!-- 已添加题目 -->
-    <div style="background-color: var(--surface); padding: 20px; border-radius: 8px; border: 1px solid var(--border);">
-        <h3>已添加题目 ({{ contest_problems|length }})</h3>
-        {% if contest_problems %}
-        <table style="margin-top: 10px;">
-            <thead>
-                <tr>
-                    <th>顺序</th>
-                    <th>别名</th>
-                    <th>标题</th>
-                    <th>操作</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for cp in contest_problems %}
-                <tr>
-                    <td>{{ cp.display_order }}</td>
-                    <td>{{ cp.alias or '-' }}</td>
-                    <td>{{ cp.problem.title }}</td>
-                    <td>
-                        <form method="POST" action="{{ url_for('admin.remove_contest_problem', contest_id=contest.id, problem_id=cp.problem_id) }}" style="display: inline;">
-                            <button type="submit" class="btn btn-danger btn-small" onclick="return confirm('确定移除此题目？')">移除</button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <p style="color: var(--text-muted);">暂无题目</p>
-        {% endif %}
-    </div>
-    
-    <!-- 添加题目 -->
-    <div style="background-color: var(--surface); padding: 20px; border-radius: 8px; border: 1px solid var(--border);">
-        <h3>添加题目</h3>
-        {% if available_problems %}
-        <form method="POST" style="margin-top: 10px;">
-            <select name="problem_id" style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 10px;">
-                <option value="">-- 选择题目 --</option>
-                {% for p in available_problems %}
-                <option value="{{ p.id }}">{{ p.id }}: {{ p.title }}</option>
-                {% endfor %}
-            </select>
-            
-                 <input type="text" name="alias" placeholder="题目别名 (如 A, B, C)" 
-                     style="width: 100%; padding: 8px; border-radius: 4px; margin-bottom: 10px; box-sizing: border-box;">
-            
-            <button type="submit" class="btn btn-primary" style="width: 100%;">添加</button>
-        </form>
-        {% else %}
-        <p style="color: var(--text-muted);">所有题目已添加</p>
-        {% endif %}
-    </div>
-</div>
-
-<div style="margin-top: 20px;">
-    <a href="{{ url_for('admin.contests_list') }}" class="btn btn-primary">返回竞赛列表</a>
-</div>
+<h2>{{ contest.title }} - {{ t('admin.contest_problem_management') }}</h2>
+{% if contest_problems %}<h3>{{ t('contest.problems') }} ({{ contest_problems|length }})</h3><table><thead><tr><th>{{ t('admin.order') }}</th><th>{{ t('admin.alias') }}</th><th>{{ t('problems.title_label') }}</th><th>{{ t('admin.actions') }}</th></tr></thead><tbody>{% for cp in contest_problems %}<tr><td>{{ loop.index }}</td><td>{{ cp.alias }}</td><td>{{ cp.problem.title }}</td><td><form method="POST" action="{{ url_for('admin.remove_contest_problem', contest_id=contest.id, problem_id=cp.problem_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="btn btn-danger btn-small" onclick="return confirm('{{ t('admin.confirm_remove') }}')">{{ t('admin.remove') }}</button></form></td></tr>{% endfor %}</tbody></table>{% else %}<p>{{ t('admin.empty_problems') }}</p>{% endif %}
+{% if available_problems %}<h3>{{ t('admin.add_problem') }}</h3><form method="POST"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><select name="problem_id" required>{% for p in available_problems %}<option value="{{ p.id }}">{{ p.id }} - {{ p.title }}</option>{% endfor %}</select><input type="text" name="alias" placeholder="{{ t('admin.alias') }}"><button type="submit" class="btn btn-primary">{{ t('admin.add') }}</button></form>{% else %}<p>{{ t('admin.no_more_problems') }}</p>{% endif %}
+<a href="{{ url_for('admin.contests_list') }}" class="btn btn-primary">{{ t('admin.contests') }}</a>
 {% endblock %}

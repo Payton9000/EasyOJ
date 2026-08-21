@@ -1,54 +1,68 @@
 {% extends "base.html" %}
-{% block title %}Problems - OJ System{% endblock %}
+{% block title %}{{ t('nav.problems') }} - EasyOJ{% endblock %}
 {% block content %}
-<div class="card">
-    <h2 style="margin-bottom:16px; color:#e94560;">Problem Set</h2>
-    <form method="GET" style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
-        <input type="text" name="q" value="{{ q }}" placeholder="Search by title..." style="flex:1; min-width:200px;">
-        <select name="difficulty" style="width:150px;">
-            <option value="">All Difficulty</option>
-            <option value="easy" {% if difficulty=='easy' %}selected{% endif %}>Easy</option>
-            <option value="medium" {% if difficulty=='medium' %}selected{% endif %}>Medium</option>
-            <option value="hard" {% if difficulty=='hard' %}selected{% endif %}>Hard</option>
-        </select>
-        <button type="submit" class="btn btn-primary">Search</button>
+<section class="card">
+    <div class="page-heading">
+        <div>
+            <h1 class="page-title">{{ t('problems.title') }}</h1>
+            <p class="muted">{{ t('problems.subtitle') }}</p>
+        </div>
+    </div>
+
+    <form class="search-form" method="GET" action="{{ url_for('web.problem_list') }}">
+        <div>
+            <label for="problem-search">{{ t('problems.search') }}</label>
+            <input id="problem-search" type="search" name="q" value="{{ q }}" placeholder="{{ t('problems.search_placeholder') }}">
+        </div>
+        <div>
+            <label for="problem-difficulty">{{ t('problems.difficulty') }}</label>
+            <select id="problem-difficulty" name="difficulty">
+                <option value="">{{ t('problems.all_difficulties') }}</option>
+                <option value="easy" {% if difficulty == 'easy' %}selected{% endif %}>{{ t('problems.easy') }}</option>
+                <option value="medium" {% if difficulty == 'medium' %}selected{% endif %}>{{ t('problems.medium') }}</option>
+                <option value="hard" {% if difficulty == 'hard' %}selected{% endif %}>{{ t('problems.hard') }}</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">{{ t('problems.search') }}</button>
+        {% if q or difficulty %}
+            <a class="btn btn-secondary" href="{{ url_for('web.problem_list') }}">{{ t('problems.clear') }}</a>
+        {% endif %}
     </form>
-    <table>
-        <thead>
-            <tr><th>#</th><th>Title</th><th>Difficulty</th><th>Time Limit</th><th>Memory Limit</th></tr>
-        </thead>
-        <tbody>
-        {% for problem in problems %}
-        <tr>
-            <td>{{ problem.id }}</td>
-            <td><a href="/problem/{{ problem.id }}">{{ problem.title }}</a></td>
-            <td><span class="diff-{{ problem.difficulty }}">{{ problem.difficulty | capitalize }}</span></td>
-            <td>{{ problem.time_limit }}ms</td>
-            <td>{{ problem.memory_limit }}MB</td>
-        </tr>
-        {% else %}
-        <tr><td colspan="5" style="text-align:center; color:#aaa;">No problems found.</td></tr>
-        {% endfor %}
-        </tbody>
-    </table>
-    <div class="pagination" style="margin-top:16px;">
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>{{ t('problems.number') }}</th><th>{{ t('problems.title_label') }}</th><th>{{ t('problems.difficulty') }}</th><th>{{ t('problems.time_limit') }}</th><th>{{ t('problems.memory_limit') }}</th></tr>
+            </thead>
+            <tbody>
+            {% for problem in problems %}
+                <tr>
+                    <td>{{ problem.id }}</td>
+                    <td><a href="{{ url_for('web.problem_detail', problem_id=problem.id) }}">{{ problem.title }}</a></td>
+                    <td><span class="diff-{{ problem.difficulty }}">{{ problem.difficulty | capitalize }}</span></td>
+                    <td>{{ problem.time_limit }} ms</td>
+                    <td>{{ problem.memory_limit }} MB</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="5"><div class="empty-state">{{ t('problems.empty') }} <a href="{{ url_for('web.problem_list') }}">{{ t('problems.clear_filters') }}</a></div></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <nav class="pagination" aria-label="{{ t('problems.title') }}">
         {% if pagination.has_prev %}
-        <a href="?page={{ pagination.prev_num }}&q={{ q }}&difficulty={{ difficulty }}">&laquo; Prev</a>
+            <a href="?page={{ pagination.prev_num }}&q={{ q }}&difficulty={{ difficulty }}">&laquo; {{ t('pagination.prev') }}</a>
         {% endif %}
         {% for p in pagination.iter_pages() %}
-        {% if p %}
-            {% if p == pagination.page %}
-            <span class="current">{{ p }}</span>
-            {% else %}
-            <a href="?page={{ p }}&q={{ q }}&difficulty={{ difficulty }}">{{ p }}</a>
-            {% endif %}
-        {% else %}
-            <span>…</span>
-        {% endif %}
+            {% if p %}
+                {% if p == pagination.page %}<span class="current">{{ p }}</span>
+                {% else %}<a href="?page={{ p }}&q={{ q }}&difficulty={{ difficulty }}">{{ p }}</a>{% endif %}
+            {% else %}<span aria-hidden="true">...</span>{% endif %}
         {% endfor %}
         {% if pagination.has_next %}
-        <a href="?page={{ pagination.next_num }}&q={{ q }}&difficulty={{ difficulty }}">Next &raquo;</a>
+            <a href="?page={{ pagination.next_num }}&q={{ q }}&difficulty={{ difficulty }}">{{ t('pagination.next') }} &raquo;</a>
         {% endif %}
-    </div>
-</div>
+    </nav>
+</section>
 {% endblock %}

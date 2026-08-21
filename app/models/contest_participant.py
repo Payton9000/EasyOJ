@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from app import db
 
 
@@ -13,9 +14,7 @@ class ContestParticipant(db.Model):
 
     # 关系定义在User模型中以避免backref冲突
 
-    __table_args__ = (
-        db.UniqueConstraint('contest_id', 'user_id', name='uq_contest_user'),
-    )
+    __table_args__ = (db.UniqueConstraint('contest_id', 'user_id', name='uq_contest_user'),)
 
     def __repr__(self):
         return f'<ContestParticipant {self.contest_id}-{self.user_id}>'

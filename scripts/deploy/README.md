@@ -1,4 +1,22 @@
-# Toolchain Deploy Scripts
+# Windows Deployment
+
+日用 Windows 机器（学校内网作业/课堂竞赛）推荐使用图形化部署助手：
+
+```powershell
+.\.venv\Scripts\python.exe scripts/deploy/windows/deploy_gui.py
+```
+
+第一次使用请选择 “Initialize / repair”。它会在项目目录内创建 `.venv`、生成 `.env`、安装 Python 依赖、下载 MinGW/JDK 到 `toolchain/` 并初始化数据库；不会修改系统 PATH，也不会把编译器安装到全局目录。若项目未自带 Python，可仅使用系统 Python 一次创建 `.venv`，之后运行时使用项目内解释器。
+
+启动服务：
+
+```powershell
+.\scripts\deploy\windows\start_easyoj.ps1
+```
+
+默认监听 `0.0.0.0:5000` 供内网访问。请仅在可信内网开放 Windows 防火墙端口，并首次登录后修改初始化管理员密码。
+
+以下旧脚本仍可单独使用，仅负责下载本地工具链：
 
 这些脚本默认假设项目代码已经在本机，只负责准备 toolchain。
 

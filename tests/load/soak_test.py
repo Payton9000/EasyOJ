@@ -4,12 +4,12 @@ import os
 import random
 import shutil
 import sys
+import threading
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
-import threading
 
 import psutil
 
@@ -17,16 +17,19 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
-from app.config import TestingConfig
-
-from app import create_app
-from app import db
-from app.models.submission import Submission
-from tests.utils import create_problem, create_user, write_testcases
+from app import create_app  # noqa: E402
+from app import db  # noqa: E402
+from app.config import TestingConfig  # noqa: E402
+from app.models.submission import Submission  # noqa: E402
+from tests.utils import create_problem  # noqa: E402
+from tests.utils import create_user  # noqa: E402
+from tests.utils import write_testcases  # noqa: E402
 
 
 def _login(client, username, password):
-    return client.post('/login', data={'username': username, 'password': password}, follow_redirects=True)
+    return client.post(
+        '/login', data={'username': username, 'password': password}, follow_redirects=True
+    )
 
 
 def _poll_submission(client, submission_id, timeout_s=10):
@@ -55,18 +58,18 @@ def _cleanup_artifacts(base_dir):
 
 def _build_testcases(size):
     if size == 'small':
-        cases = [("1 2", "3"), ("10 20", "30")]
+        cases = [('1 2', '3'), ('10 20', '30')]
     elif size == 'medium':
         cases = []
         for i in range(1, 11):
             a, b = i * 7, i * 11
-            cases.append((f"{a} {b}", str(a + b)))
+            cases.append((f'{a} {b}', str(a + b)))
     else:
         cases = []
         for i in range(1, 31):
             nums = [str(i + j) for j in range(10)]
             total = sum(int(x) for x in nums)
-            cases.append((" ".join(nums), str(total)))
+            cases.append((' '.join(nums), str(total)))
     return cases
 
 
@@ -219,6 +222,8 @@ public class Main {
 
 def _record(counter, key, amount=1):
     counter[key] = counter.get(key, 0) + amount
+
+
 def _code_sample(app, submission_id, max_len=40):
     with app.app_context():
         submission = Submission.query.get(submission_id)
@@ -244,18 +249,25 @@ def _filter_scenarios(config, scenarios):
     return filtered
 
 
-def run_soak(duration_s=120, interval_s=0.5, report_every=10, users=5, workers=2,
-             problems_per_size=2, poll_timeout_s=60):
+def run_soak(
+    duration_s=120,
+    interval_s=0.5,
+    report_every=10,
+    users=5,
+    workers=2,
+    problems_per_size=2,
+    poll_timeout_s=60,
+):
     base_dir = BASE_DIR / 'tests'
     (base_dir / 'data').mkdir(parents=True, exist_ok=True)
     db_path = base_dir / 'data' / 'soak_test.db'
-    TestingConfig.SQLALCHEMY_DATABASE_URI = f"sqlite:///{db_path}"
+    TestingConfig.SQLALCHEMY_DATABASE_URI = f'sqlite:///{db_path}'
 
     app = create_app(
         'testing',
         config_overrides={
             'BASE_DIR': str(base_dir),
-            'SQLALCHEMY_DATABASE_URI': f"sqlite:///{db_path}",
+            'SQLALCHEMY_DATABASE_URI': f'sqlite:///{db_path}',
         },
     )
     app.config['MAX_JUDGE_WORKERS'] = workers
@@ -328,7 +340,9 @@ def run_soak(duration_s=120, interval_s=0.5, report_every=10, users=5, workers=2
             _login(client, username, 'password123')
 
             while time.time() - start < duration_s:
-                expected, language, code_fn, _ = random.choices(scenarios, weights=scenario_weights, k=1)[0]
+                expected, language, code_fn, _ = random.choices(
+                    scenarios, weights=scenario_weights, k=1
+                )[0]
                 if expected == 'MLE':
                     problem_id = mle_problem_id
                 else:
@@ -365,20 +379,24 @@ def run_soak(duration_s=120, interval_s=0.5, report_every=10, users=5, workers=2
                     _record(actual_counts, actual)
                     if actual in ('Queued', 'Judging'):
                         _record(in_progress_counts, actual)
-                    elif actual == expected or (expected == 'MLE' and actual in ('MLE', 'RE', 'TLE')):
+                    elif actual == expected or (
+                        expected == 'MLE' and actual in ('MLE', 'RE', 'TLE')
+                    ):
                         _record(status_counts, 'ok')
                     else:
                         failures += 1
                         _record(status_counts, 'mismatch')
                         _record(error_counts, f'{expected}_got_{actual}')
                         if len(mismatch_samples) < 5:
-                            mismatch_samples.append({
-                                'submission_id': submission_id,
-                                'expected': expected,
-                                'actual': actual,
-                                'language': language,
-                                'code_sample': _code_sample(app, submission_id),
-                            })
+                            mismatch_samples.append(
+                                {
+                                    'submission_id': submission_id,
+                                    'expected': expected,
+                                    'actual': actual,
+                                    'language': language,
+                                    'code_sample': _code_sample(app, submission_id),
+                                }
+                            )
 
                 time.sleep(interval_s)
         except Exception as exc:
@@ -400,10 +418,10 @@ def run_soak(duration_s=120, interval_s=0.5, report_every=10, users=5, workers=2
                     queue_size = app.judge_engine.task_queue.qsize()
                     avg_latency = (poll_time_total / poll_count) if poll_count else 0.0
                     print(
-                        f"[{datetime.utcnow().isoformat()}] submissions={submissions} "
-                        f"failures={failures} mem_mb={mem_mb:.2f} handles={handles} "
-                        f"cpu_pct={cpu_pct:.1f} threads={thread_count} queue={queue_size} "
-                        f"avg_poll_s={avg_latency:.2f}",
+                        f'[{datetime.utcnow().isoformat()}] submissions={submissions} '
+                        f'failures={failures} mem_mb={mem_mb:.2f} handles={handles} '
+                        f'cpu_pct={cpu_pct:.1f} threads={thread_count} queue={queue_size} '
+                        f'avg_poll_s={avg_latency:.2f}',
                         flush=True,
                     )
                     last_report = time.time()
@@ -428,7 +446,7 @@ def run_soak(duration_s=120, interval_s=0.5, report_every=10, users=5, workers=2
         summary_path.write_text(json.dumps(summary, ensure_ascii=True, indent=2), encoding='utf-8')
     except OSError:
         pass
-    print(f"Summary: {json.dumps(summary, ensure_ascii=True)}", flush=True)
+    print(f'Summary: {json.dumps(summary, ensure_ascii=True)}', flush=True)
 
     return submissions, failures
 
@@ -453,4 +471,4 @@ if __name__ == '__main__':
         args.problems_per_size,
         args.poll_timeout,
     )
-    print(f"Soak done. total={total} failures={failures}", flush=True)
+    print(f'Soak done. total={total} failures={failures}', flush=True)

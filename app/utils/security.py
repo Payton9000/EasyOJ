@@ -1,41 +1,25 @@
-import hmac
 import logging
 import re
-import secrets
-
-from flask import session
 
 logger = logging.getLogger(__name__)
 
 DANGEROUS_PATTERNS = {
-    'python': [r'os\.system', r'subprocess', r'\bimport\b', r'\beval\b', r'\bexec\b', r'\bcompile\b'],
+    'python': [r'os\.system', r'subprocess', r'\beval\b', r'\bexec\b', r'\bcompile\b'],
     'cpp': [r'system\s*\(', r'fork\s*\(', r'exec\w*\s*\('],
-    'java': [r'Runtime\.exec', r'ProcessBuilder'],
+    'java': [r'Runtime\b.*\.exec', r'ProcessBuilder'],
 }
 
 
-def generate_csrf_token():
-    token = secrets.token_hex(32)
-    session['_csrf_token'] = token
-    return token
-
-
-def validate_csrf_token(token):
-    stored = session.get('_csrf_token', '')
-    if not stored or not token:
-        return False
-    return hmac.compare_digest(stored, token)
-
-
-def sanitize_code(code):
+def sanitize_code(code, language=None):
     if len(code) > 64 * 1024:
         raise ValueError('Code exceeds 64KB limit')
-    for lang, patterns in DANGEROUS_PATTERNS.items():
+    languages = [language] if language else list(DANGEROUS_PATTERNS.keys())
+    for lang in languages:
+        patterns = DANGEROUS_PATTERNS.get(lang, [])
         for pattern in patterns:
             if re.search(pattern, code):
-                logger.warning('Potentially dangerous pattern found (%s): %s', lang, pattern)
+                logger.warning('Dangerous pattern blocked (%s): %s', lang, pattern)
+                raise ValueError(
+                    f'Code contains a potentially dangerous pattern ({lang}): {pattern}'
+                )
     return code
-
-
-def safe_filename(filename):
-    return re.sub(r'[^a-zA-Z0-9._\-]', '_', filename)

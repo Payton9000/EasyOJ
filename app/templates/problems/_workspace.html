@@ -1,0 +1,176 @@
+{% set workspace_key = workspace_key | default('problem:' ~ problem.id, true) %}
+{% set supported_languages = supported_languages | default(config['SUPPORTED_LANGUAGES'], true) %}
+{% set selected_language = language if language in supported_languages else (supported_languages.keys() | list | first) %}
+{% set can_submit = current_user.is_authenticated %}
+<section
+    class="coding-workspace"
+    data-coding-workspace
+    data-workspace-key="{{ workspace_key }}"
+    data-draft-scope="{{ 'user:' ~ current_user.get_id() if can_submit else '' }}"
+    data-problem-id="{{ problem.id }}"
+    data-authenticated="{{ 'true' if can_submit else 'false' }}"
+    data-csrf-token="{{ csrf_token() }}"
+    data-run-url="{{ run_url | default('', true) }}"
+    data-run-unavailable="{{ t('workspace.run_unavailable') }}"
+    data-draft-saved="{{ t('workspace.draft_saved') }}"
+    data-draft-cleared="{{ t('workspace.draft_cleared') }}"
+    data-ready="{{ t('workspace.ready') }}"
+    data-running="{{ t('workspace.running') }}"
+    data-submitting="{{ t('workspace.submitting') }}"
+    data-request-failed="{{ t('workspace.request_failed') }}"
+    data-status-pending="{{ t('submission.status.Pending') }}"
+    data-status-queued="{{ t('submission.status.Queued') }}"
+    data-status-judging="{{ t('submission.status.Judging') }}"
+    data-status-ac="{{ t('submission.status.AC') }}"
+    data-status-wa="{{ t('submission.status.WA') }}"
+    data-status-ce="{{ t('submission.status.CE') }}"
+    data-status-re="{{ t('submission.status.RE') }}"
+    data-status-tle="{{ t('submission.status.TLE') }}"
+    data-status-mle="{{ t('submission.status.MLE') }}"
+    data-status-ole="{{ t('submission.status.OLE') }}"
+    data-status-failed="{{ t('submission.status.Failed') }}"
+    data-status-system-error="{{ t('submission.status.SystemError') }}"
+    data-status-ok="{{ t('submission.status.OK') }}"
+    data-status-busy="{{ t('submission.status.Busy') }}"
+    data-status-invalid="{{ t('submission.status.Invalid') }}"
+>
+    <div class="workspace-pane workspace-statement">
+        <div class="workspace-pane-header">
+            <div>
+                <p class="workspace-kicker">{{ workspace_context_label or t('workspace.practice') }}</p>
+                <h1 class="page-title">
+                    {% if contest_problem %}{{ contest_problem.alias }}: {% endif %}{{ problem.title }}
+                </h1>
+            </div>
+        </div>
+
+        <div class="problem-meta workspace-meta">
+            <span>{{ t('workspace.time_limit') }}: <strong>{{ problem.time_limit }} ms</strong></span>
+            <span>{{ t('workspace.memory_limit') }}: <strong>{{ problem.memory_limit }} MB</strong></span>
+            <span>{{ t('workspace.difficulty') }}: <strong class="diff-{{ problem.difficulty }}">{{ problem.difficulty | capitalize }}</strong></span>
+            {% if problem.source %}<span>{{ t('workspace.source') }}: <strong>{{ problem.source }}</strong></span>{% endif %}
+        </div>
+
+        <div class="workspace-statement-body">
+            <h2 class="workspace-section-title">{{ t('workspace.statement') }}</h2>
+            <section class="problem-section">
+                <h2>{{ t('workspace.description') }}</h2>
+                <div class="problem-text">{{ problem.description }}</div>
+            </section>
+            {% if problem.input_description %}
+            <section class="problem-section">
+                <h2>{{ t('workspace.input') }}</h2>
+                <div class="problem-text">{{ problem.input_description }}</div>
+            </section>
+            {% endif %}
+            {% if problem.output_description %}
+            <section class="problem-section">
+                <h2>{{ t('workspace.expected_output') }}</h2>
+                <div class="problem-text">{{ problem.output_description }}</div>
+            </section>
+            {% endif %}
+            {% if problem.sample_input %}
+            <section class="problem-section">
+                <h2>{{ t('workspace.sample_input') }}</h2>
+                <pre>{{ problem.sample_input }}</pre>
+            </section>
+            {% endif %}
+            {% if problem.sample_output %}
+            <section class="problem-section">
+                <h2>{{ t('workspace.sample_output') }}</h2>
+                <pre>{{ problem.sample_output }}</pre>
+            </section>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="workspace-pane workspace-editor">
+        <form id="workspace-submit-form" method="POST" action="{{ submit_action }}" data-workspace-form>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% if submission_idempotency_key %}<input type="hidden" name="idempotency_key" value="{{ submission_idempotency_key }}">{% endif %}
+            <div class="workspace-toolbar">
+                <div class="workspace-toolbar-group">
+                    <label class="workspace-control-label" for="language">{{ t('workspace.language') }}</label>
+                    <select id="language" name="language" class="language-select" data-language-select aria-label="{{ t('workspace.language') }}">
+                        {% for lang_key, lang_info in supported_languages.items() %}
+                            <option value="{{ lang_key }}" {% if selected_language == lang_key %}selected{% endif %}>{{ lang_info.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <span class="workspace-draft-status" data-draft-status role="status" aria-live="polite">{{ t('workspace.ready') }}</span>
+            </div>
+
+            <div class="workspace-editor-frame">
+                <div class="code-line-numbers" data-line-numbers aria-hidden="true">1</div>
+                <textarea
+                    id="code-editor"
+                    name="code"
+                    class="code-editor workspace-code-editor"
+                    rows="22"
+                    wrap="off"
+                    spellcheck="false"
+                    autocomplete="off"
+                    autocapitalize="off"
+                    autocorrect="off"
+                    placeholder="{{ t('workspace.editor_placeholder') }}"
+                    aria-label="{{ t('workspace.source_code') }}"
+                    aria-describedby="editor-help"
+                    data-code-editor
+                    required
+                >{{ code or '' }}</textarea>
+            </div>
+            <div id="editor-help" class="form-help workspace-help">
+                {{ t('workspace.editor_help') }}
+                <span class="workspace-shortcut">{{ t('workspace.completion_shortcut') }} &middot; {{ t('workspace.run_shortcut') }} &middot; {{ t('workspace.submit_shortcut') }}</span>
+            </div>
+
+            <div class="workspace-input-section">
+                <label for="custom-input">{{ t('workspace.custom_input') }}</label>
+                <textarea id="custom-input" name="custom_input" rows="4" class="workspace-input" placeholder="{{ t('workspace.custom_input_placeholder') }}" data-custom-input></textarea>
+            </div>
+
+            <div class="workspace-actions">
+                <button
+                    id="run-code"
+                    class="btn btn-secondary"
+                    type="button"
+                    data-run-code
+                    data-run-shortcut="Ctrl+Enter"
+                    {% if not can_submit %}disabled aria-disabled="true"{% endif %}
+                >{{ t('workspace.run') }}</button>
+                <button
+                    id="submit-code"
+                    class="btn btn-primary"
+                    type="submit"
+                    data-submit-code
+                    data-submit-shortcut="Ctrl+Shift+Enter"
+                    {% if not can_submit %}disabled aria-disabled="true"{% endif %}
+                >{{ t('workspace.submit') }}</button>
+                <button class="btn btn-link" type="button" data-clear-draft>{{ t('workspace.clear_draft') }}</button>
+                {% if not can_submit %}
+                    <a class="workspace-login-link" href="{{ url_for('web.login') }}">{{ t('workspace.login_to_submit') }}</a>
+                {% endif %}
+            </div>
+        </form>
+
+        <section id="run-result" class="workspace-result" data-run-result aria-live="polite" aria-busy="false">
+            <div class="workspace-result-header">
+                <h2>{{ t('workspace.output') }}</h2>
+                <span class="workspace-result-status" data-result-status>{{ t('workspace.ready') }}</span>
+            </div>
+            <div class="workspace-result-tabs" role="tablist" aria-label="{{ t('workspace.result') }}">
+                <button id="run-output-tab" type="button" class="workspace-result-tab is-active" role="tab" tabindex="0" aria-selected="true" aria-controls="run-output" data-result-tab="output">{{ t('workspace.console') }}</button>
+                <button id="run-summary-tab" type="button" class="workspace-result-tab" role="tab" tabindex="-1" aria-selected="false" aria-controls="run-summary" data-result-tab="summary">{{ t('workspace.summary') }}</button>
+            </div>
+            <pre id="run-output" class="workspace-output" role="tabpanel" tabindex="0" aria-labelledby="run-output-tab" data-result-panel="output">{{ t('workspace.output_empty') }}</pre>
+            <div id="run-summary" class="workspace-summary" role="tabpanel" tabindex="0" aria-labelledby="run-summary-tab" data-result-panel="summary" hidden>
+                <dl>
+                    <div><dt>{{ t('workspace.status') }}</dt><dd data-summary-status>-</dd></div>
+                    <div><dt>{{ t('workspace.time') }}</dt><dd data-summary-time>-</dd></div>
+                    <div><dt>{{ t('workspace.memory') }}</dt><dd data-summary-memory>-</dd></div>
+                    <div><dt>{{ t('workspace.error') }}</dt><dd data-summary-error>-</dd></div>
+                </dl>
+            </div>
+        </section>
+    </div>
+</section>

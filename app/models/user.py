@@ -1,7 +1,10 @@
 from datetime import datetime
-from app import db
+
 from flask_login import UserMixin
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import check_password_hash
+from werkzeug.security import generate_password_hash
+
+from app import db
 
 
 class User(UserMixin, db.Model):
@@ -14,6 +17,10 @@ class User(UserMixin, db.Model):
     role = db.Column(db.String(20), default='user', nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_active = db.Column(db.Boolean, default=True)
+    must_change_password = db.Column(db.Boolean, default=False, nullable=False)
+    failed_login_count = db.Column(db.Integer, default=0, nullable=False)
+    locked_until = db.Column(db.DateTime)
+    last_login_at = db.Column(db.DateTime)
 
     submissions = db.relationship('Submission', backref='author', lazy=True)
     contest_participants = db.relationship('ContestParticipant', backref='user', lazy=True)

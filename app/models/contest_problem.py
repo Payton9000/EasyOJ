@@ -13,9 +13,7 @@ class ContestProblem(db.Model):
     # 关系
     problem = db.relationship('Problem', backref='contest_problems')
 
-    __table_args__ = (
-        db.UniqueConstraint('contest_id', 'problem_id', name='uq_contest_problem'),
-    )
+    __table_args__ = (db.UniqueConstraint('contest_id', 'problem_id', name='uq_contest_problem'),)
 
     def __repr__(self):
         return f'<ContestProblem {self.contest_id}-{self.problem_id}: {self.alias}>'
