@@ -1,8 +1,56 @@
 {% extends "admin/admin_base.html" %}
 {% block admin_content %}
 <h2>{{ t('admin.all_submissions') }}</h2>
-<div style="margin-bottom:20px;"><form method="GET" style="display:inline;"><input type="text" name="q" placeholder="{{ t('admin.search') }}" value="" style="padding:8px;border-radius:4px;"><button type="submit" class="btn btn-primary">{{ t('admin.search') }}</button></form></div>
-{% if submissions %}<table><thead><tr><th>ID</th><th>{{ t('admin.users') }}</th><th>{{ t('admin.problems') }}</th><th>{{ t('admin.contests') }}</th><th>{{ t('submissions.language') }}</th><th>{{ t('submissions.status') }}</th><th>{{ t('admin.time') }}</th><th>{{ t('admin.memory') }}</th><th>{{ t('submissions.submitted_at') }}</th><th>{{ t('admin.actions') }}</th></tr></thead><tbody>
-{% for s in submissions %}<tr><td>#{{ s.id }}</td><td>{{ s.author.username }}</td><td>{{ s.problem.title }}</td><td>{{ s.contest.title if s.contest else '-' }}</td><td>{{ s.language }}</td><td>{{ s.status }}</td><td>{{ s.time_used or '-' }}ms</td><td>{{ s.memory_used or '-' }}KB</td><td>{{ s.submitted_at | local_datetime('%m-%d %H:%M') }}</td><td><form method="POST" action="{{ url_for('admin.rejudge_submission', submission_id=s.id) }}" style="display:inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="btn btn-primary btn-small">{{ t('admin.rejudge_success') }}</button></form></td></tr>{% endfor %}
-</tbody></table>{% if paginated.pages > 1 %}<div style="margin-top:20px;text-align:center;">{% if paginated.has_prev %}<a href="{{ url_for('admin.submissions_list', page=paginated.prev_num) }}" class="btn btn-primary">{{ t('pagination.prev') }}</a>{% endif %}<span>{{ t('admin.page_of', page=paginated.page, pages=paginated.pages) }}</span>{% if paginated.has_next %}<a href="{{ url_for('admin.submissions_list', page=paginated.next_num) }}" class="btn btn-primary">{{ t('pagination.next') }}</a>{% endif %}</div>{% endif %}{% else %}<p style="color:var(--text-muted);">{{ t('admin.empty_submissions') }}</p>{% endif %}
+{#- The old free-text box was never read by the view, so searching did nothing.
+    These filters map to the parameters the route actually supports. -#}
+<div class="admin-toolbar">
+    <form method="GET">
+        <label class="sr-only" for="af-user">{{ t('admin.users') }}</label>
+        <input type="number" id="af-user" name="user_id" min="1" placeholder="{{ t('admin.filter_user_id') }}" value="{{ user_id or '' }}">
+        <label class="sr-only" for="af-problem">{{ t('admin.problems') }}</label>
+        <input type="number" id="af-problem" name="problem_id" min="1" placeholder="{{ t('admin.filter_problem_id') }}" value="{{ problem_id or '' }}">
+        <label class="sr-only" for="af-status">{{ t('submissions.status') }}</label>
+        <select id="af-status" name="status">
+            <option value="">{{ t('admin.filter_any_status') }}</option>
+            {% for code in status_codes %}<option value="{{ code }}" {% if status == code %}selected{% endif %}>{{ t('submission.status.' ~ code) }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary">{{ t('admin.search') }}</button>
+        <a href="{{ url_for('admin.submissions_list') }}" class="btn btn-secondary">{{ t('problems.clear_filters') }}</a>
+    </form>
+</div>
+{% if submissions %}
+<div class="table-wrap">
+    <table>
+        <thead><tr><th>ID</th><th>{{ t('admin.users') }}</th><th>{{ t('admin.problems') }}</th><th>{{ t('admin.contests') }}</th><th>{{ t('submissions.language') }}</th><th>{{ t('submissions.status') }}</th><th>{{ t('admin.time') }}</th><th>{{ t('admin.memory') }}</th><th>{{ t('submissions.submitted_at') }}</th><th>{{ t('admin.actions') }}</th></tr></thead>
+        <tbody>
+        {% for s in submissions %}
+            <tr>
+                <td><a href="{{ url_for('web.submission_detail', submission_id=s.id) }}">#{{ s.id }}</a></td>
+                <td>{{ s.author.username }}</td>
+                <td>{{ s.problem.title }}</td>
+                <td>{{ s.contest.title if s.contest else '-' }}</td>
+                <td>{{ s.language }}</td>
+                <td><span class="status-{{ s.status }}">{{ t('submission.status.' ~ s.status) }}</span></td>
+                <td>{{ (s.time_used ~ ' ms') if s.time_used is not none else '-' }}</td>
+                <td>{{ s.memory_used | memory_size }}</td>
+                <td>{{ s.submitted_at | local_datetime('%m-%d %H:%M') }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('admin.rejudge_submission', submission_id=s.id) }}" class="inline-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-secondary btn-small">{{ t('admin.rejudge') }}</button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% if paginated.pages > 1 %}
+<div class="admin-pagination">
+    {% if paginated.has_prev %}<a href="{{ url_for('admin.submissions_list', page=paginated.prev_num, user_id=user_id, problem_id=problem_id, status=status) }}" class="btn btn-secondary">{{ t('pagination.prev') }}</a>{% endif %}
+    <span>{{ t('admin.page_of', page=paginated.page, pages=paginated.pages) }}</span>
+    {% if paginated.has_next %}<a href="{{ url_for('admin.submissions_list', page=paginated.next_num, user_id=user_id, problem_id=problem_id, status=status) }}" class="btn btn-secondary">{{ t('pagination.next') }}</a>{% endif %}
+</div>
+{% endif %}
+{% else %}<p class="empty-state">{{ t('admin.empty_submissions') }}</p>{% endif %}
 {% endblock %}

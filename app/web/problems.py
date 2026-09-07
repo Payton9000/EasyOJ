@@ -12,6 +12,7 @@ from flask import request
 from flask import url_for
 from flask_login import current_user
 from flask_login import login_required
+from sqlalchemy.orm import defer
 
 from app import db
 from app.i18n import translate as t
@@ -20,10 +21,12 @@ from app.models.problem import Problem
 from app.models.submission import Submission
 from app.services.submission_service import enqueue_submission
 from app.services.submission_service import find_active_contest_problem
+from app.services.submission_service import problem_in_running_contest
 from app.services.submission_service import submission_is_in_active_contest
 from app.utils.file_utils import ensure_dir
 from app.utils.file_utils import get_submission_dir
 from app.utils.rate_limit import submission_allowed
+from app.utils.security import DangerousCodeError
 from app.utils.security import sanitize_code
 from app.web import web_bp
 
@@ -204,7 +207,9 @@ def problem_list():
     if q:
         query = query.filter(Problem.title.ilike(f'%{q}%'))
 
-    pagination = query.paginate(page=page, per_page=20, error_out=False)
+    # Without an explicit order SQLite may return rows in any order, so a problem
+    # could move between pages (or vanish from page 1) across requests.
+    pagination = query.order_by(Problem.id.asc()).paginate(page=page, per_page=20, error_out=False)
     return render_template(
         'problems/list.html',
         problems=pagination.items,
@@ -243,6 +248,11 @@ def problem_submit(problem_id):
                     alias=active_contest_problem.alias,
                 )
             )
+        # Non-participants must not reach the practice path either: the judge
+        # report would expose expected output for a problem still being contested.
+        if problem_in_running_contest(problem_id):
+            flash(t('flash.problem_locked_by_contest'), 'warning')
+            return redirect(url_for('web.problem_detail', problem_id=problem_id))
 
     supported_languages = current_app.config['SUPPORTED_LANGUAGES']
 
@@ -280,8 +290,8 @@ def problem_submit(problem_id):
 
         try:
             sanitize_code(code, language)
-        except ValueError as e:
-            flash(str(e), 'error')
+        except DangerousCodeError as exc:
+            flash(t('flash.code_feature_blocked', feature=exc.feature), 'error')
             return render_template(
                 'problems/submit.html',
                 problem=problem,
@@ -372,8 +382,11 @@ def submission_detail(submission_id):
 @login_required
 def submission_list():
     page = request.args.get('page', 1, type=int)
-    query = Submission.query.filter_by(user_id=current_user.id).order_by(
-        Submission.submitted_at.desc()
+    # The list never shows source, but code can be 64 KB per row.
+    query = (
+        Submission.query.filter_by(user_id=current_user.id)
+        .options(defer(Submission.code))
+        .order_by(Submission.submitted_at.desc())
     )
     pagination = query.paginate(page=page, per_page=20, error_out=False)
     return render_template(

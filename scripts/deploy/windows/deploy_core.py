@@ -13,6 +13,9 @@ import secrets
 from dataclasses import dataclass
 from pathlib import Path
 
+# Chosen by the first-run wizard; regenerating .env must not reset them.
+PRESERVED_ENV_KEYS = ('EASYOJ_PORT', 'EASYOJ_SITE_NAME')
+
 MANAGED_ENV_DEFAULTS = {
     'FLASK_ENV': 'production',
     'EASYOJ_HOST': '0.0.0.0',
@@ -26,7 +29,6 @@ MANAGED_ENV_DEFAULTS = {
     'SANDBOX_STRICT_APP_CONTAINER': '1',
     'SANDBOX_MAX_PROCESSES': '8',
     'MAX_OUTPUT_SIZE': '65536',
-    'MAX_CONTENT_LENGTH': '262144',
     'SUBMISSION_RATE_MAX': '30',
     'SUBMISSION_RATE_WINDOW_SECONDS': '60',
     'SUBMISSION_RATE_MAX_ENTRIES': '10000',
@@ -129,6 +131,9 @@ def generate_env_file(
 
     old_values = _read_env_values(target)
     values = dict(MANAGED_ENV_DEFAULTS)
+    for key in PRESERVED_ENV_KEYS:
+        if old_values.get(key):
+            values[key] = old_values[key]
     old_secret = old_values.get('SECRET_KEY')
     values['SECRET_KEY'] = (
         old_secret.strip() if _usable_secret(old_secret) else secrets.token_hex(32)

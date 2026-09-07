@@ -1,7 +1,11 @@
 import atexit
+import logging
 import os
+import threading
+from datetime import datetime
 
 from flask import Flask
+from flask import flash
 from flask import jsonify
 from flask import redirect
 from flask import render_template
@@ -75,6 +79,40 @@ def create_app(config_name='default', start_judge_engine=True, config_overrides=
             local_timezone=app.config.get('LOCAL_TIMEZONE'),
         )
 
+    @app.template_filter('file_size')
+    def file_size_filter(num_bytes):
+        """Human-readable byte count; raw numbers like 13417 mean little to a teacher."""
+        try:
+            value = float(num_bytes)
+        except (TypeError, ValueError):
+            return '-'
+        if value < 1024:
+            return f'{int(value)} B'
+        if value < 1024 * 1024:
+            return f'{value / 1024:.1f} KB'
+        return f'{value / (1024 * 1024):.1f} MB'
+
+    @app.template_filter('memory_size')
+    def memory_size_filter(kilobytes):
+        """Render a KiB reading consistently as MB.
+
+        The same field was previously shown as truncated MB, raw KB, or two-decimal
+        MB depending on the page, so 900 KiB appeared as "0 MB" in one place and
+        "900KB" in another.
+        """
+        if kilobytes is None or kilobytes == '':
+            return '-'
+        try:
+            value = float(kilobytes)
+        except (TypeError, ValueError):
+            return '-'
+        if value <= 0:
+            return '-'
+        megabytes = value / 1024
+        if megabytes < 0.1:
+            return '< 0.1 MB'
+        return f'{megabytes:.1f} MB'
+
     @login_manager.user_loader
     def load_user(user_id):
         from app.models.user import User
@@ -89,6 +127,9 @@ def create_app(config_name='default', start_judge_engine=True, config_overrides=
             logout_user()
             if request.path.startswith('/api') or request.path.startswith('/judge'):
                 return jsonify({'code': 401, 'message': 'Account is disabled'}), 401
+            # Without this the student is bounced to the sign-in page mid-task with
+            # no explanation, then told their password is wrong when they retry.
+            flash(t('flash.account_disabled'), 'error')
             return redirect(url_for('web.login'))
         if (
             current_user.is_authenticated
@@ -144,11 +185,10 @@ def create_app(config_name='default', start_judge_engine=True, config_overrides=
 
     if start_judge_engine and not app.config.get('TESTING'):
         judge_engine.start()
+        # Recorded so the administrator page can report uptime in words.
+        app.config['SERVICE_STARTED_AT'] = datetime.utcnow()
         atexit.register(_shutdown_judge_engine, judge_engine)
-
-    @app.teardown_appcontext
-    def shutdown_judge_engine(exception=None):
-        pass  # Engine lifecycle managed by atexit + daemon workers
+        _start_backup_scheduler(app)
 
     return app
 
@@ -157,7 +197,56 @@ def _shutdown_judge_engine(engine):
     try:
         engine.stop()
     except Exception:
-        pass
+        logging.getLogger(__name__).exception('Judge engine shutdown failed')
+
+
+def _start_backup_scheduler(app):
+    """Back up on start, then once per interval, from one daemon thread.
+
+    A classroom host is rebooted often and rarely runs an external scheduler, so
+    the service takes responsibility for its own backups. ``min_interval_seconds``
+    keeps frequent restarts from filling the directory with near-identical copies.
+    """
+    if not app.config.get('BACKUP_ENABLED', True):
+        return
+    from app.utils.backup import create_backup
+
+    database_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    backup_dir = app.config.get('BACKUP_DIR')
+    if not database_uri.startswith('sqlite:///') or not backup_dir:
+        return
+
+    keep = app.config.get('BACKUP_KEEP', 14)
+    interval = max(600, int(app.config.get('BACKUP_INTERVAL_SECONDS', 24 * 3600)))
+    min_interval = int(app.config.get('BACKUP_MIN_INTERVAL_SECONDS', interval * 5 // 6))
+    logger = logging.getLogger(__name__)
+    stop_event = threading.Event()
+
+    def loop():
+        first = True
+        while not stop_event.is_set():
+            try:
+                result = create_backup(
+                    database_uri,
+                    backup_dir,
+                    keep=keep,
+                    # Only the start-up run may be skipped as too recent; a due
+                    # scheduled run must always write.
+                    min_interval_seconds=min_interval if first else None,
+                )
+                if result.created:
+                    app.config['BACKUP_LAST_PATH'] = str(result.path)
+                elif result.reason:
+                    logger.info('Backup skipped: %s', result.reason)
+            except Exception:
+                logger.exception('Scheduled backup failed')
+            first = False
+            stop_event.wait(interval)
+
+    thread = threading.Thread(target=loop, name='EasyOJBackup', daemon=True)
+    thread.start()
+    app.extensions['easyoj_backup_stop'] = stop_event
+    atexit.register(stop_event.set)
 
 
 def _register_json_error_handlers(app):
@@ -195,7 +284,9 @@ def _register_json_error_handlers(app):
     def method_not_allowed(e):
         if _is_api_request():
             return _json_error(405, 'Method not allowed')
-        return e
+        # Returning the raw exception rendered an unstyled Werkzeug page with no
+        # navigation, which is a dead end for anyone who lands here.
+        return _render_error_page(405, t('error.method_not_allowed'))
 
     @app.errorhandler(413)
     def too_large(e):
@@ -230,6 +321,11 @@ def _configure_sqlite_pragmas(app):
         cursor.execute(f'PRAGMA busy_timeout={busy_timeout_ms}')
         cursor.execute('PRAGMA foreign_keys=ON')
         cursor.execute('PRAGMA synchronous=NORMAL')
+        # Negative cache_size is KiB: 64 MB of page cache instead of the 2 MB default.
+        cursor.execute('PRAGMA cache_size=-64000')
+        # Ranking and pagination queries sort through a temporary B-tree; keeping
+        # those in memory avoids spilling them to disk.
+        cursor.execute('PRAGMA temp_store=MEMORY')
         cursor.close()
 
     app.extensions[extension_key] = True
@@ -287,8 +383,66 @@ def _run_schema_migrations(app):
             'ON submission (user_id, contest_id, problem_id, client_token)'
         )
 
+    def migrate_hot_path_indexes(connection):
+        # The dispatcher polls judge_task every tick and every submit resolves
+        # contest_problem by problem_id; without these both were full scans.
+        statements = (
+            'CREATE INDEX IF NOT EXISTS idx_judge_task_status_created '
+            'ON judge_task (status, created_at)',
+            'CREATE INDEX IF NOT EXISTS idx_judge_task_status_heartbeat '
+            'ON judge_task (status, last_heartbeat_at)',
+            'CREATE INDEX IF NOT EXISTS idx_submission_submitted_at ON submission (submitted_at)',
+            'CREATE INDEX IF NOT EXISTS idx_submission_user_submitted_at '
+            'ON submission (user_id, submitted_at)',
+            'CREATE INDEX IF NOT EXISTS idx_submission_problem ON submission (problem_id)',
+            'CREATE INDEX IF NOT EXISTS idx_contest_problem_problem '
+            'ON contest_problem (problem_id)',
+            'CREATE INDEX IF NOT EXISTS idx_contest_problem_contest_alias '
+            'ON contest_problem (contest_id, alias)',
+            'CREATE INDEX IF NOT EXISTS idx_contest_participant_user '
+            'ON contest_participant (user_id)',
+            'CREATE INDEX IF NOT EXISTS idx_contest_start_time ON contest (start_time)',
+            'CREATE INDEX IF NOT EXISTS idx_user_role_active ON user (role, is_active)',
+        )
+        for statement in statements:
+            connection.execute(statement)
+
+    def migrate_contest_problem_aliases(connection):
+        # A NULL alias broke url_for and returned 500 for the entire contest page.
+        rows = connection.execute(
+            'SELECT id, contest_id, display_order FROM contest_problem '
+            "WHERE alias IS NULL OR TRIM(alias) = '' ORDER BY contest_id, display_order, id"
+        ).fetchall()
+        if not rows:
+            return
+        taken: dict[int, set[str]] = {}
+        for contest_id, alias in connection.execute(
+            'SELECT contest_id, alias FROM contest_problem '
+            "WHERE alias IS NOT NULL AND TRIM(alias) <> ''"
+        ).fetchall():
+            taken.setdefault(contest_id, set()).add(str(alias).strip().upper())
+        for row_id, contest_id, _order in rows:
+            used = taken.setdefault(contest_id, set())
+            label = next(
+                (
+                    chr(ord('A') + offset)
+                    for offset in range(26)
+                    if chr(ord('A') + offset) not in used
+                ),
+                None,
+            )
+            if label is None:
+                label = next(f'P{n}' for n in range(1, 10000) if f'P{n}' not in used)
+            used.add(label)
+            connection.execute('UPDATE contest_problem SET alias = ? WHERE id = ?', (label, row_id))
+
     run_sqlite_migrations(
         db_path,
-        [migrate_application, migrate_submission_idempotency],
+        [
+            migrate_application,
+            migrate_submission_idempotency,
+            migrate_hot_path_indexes,
+            migrate_contest_problem_aliases,
+        ],
         timeout_seconds=max(1, app.config.get('SQLITE_BUSY_TIMEOUT_MS', 30000) / 1000),
     )

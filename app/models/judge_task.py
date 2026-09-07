@@ -5,7 +5,11 @@ from app import db
 
 class JudgeTask(db.Model):
     __tablename__ = 'judge_task'
-    __table_args__ = (db.UniqueConstraint('submission_id', name='uq_judge_task_submission'),)
+    __table_args__ = (
+        db.UniqueConstraint('submission_id', name='uq_judge_task_submission'),
+        db.Index('idx_judge_task_status_created', 'status', 'created_at'),
+        db.Index('idx_judge_task_status_heartbeat', 'status', 'last_heartbeat_at'),
+    )
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     submission_id = db.Column(db.Integer, db.ForeignKey('submission.id'), nullable=False)
@@ -18,6 +22,12 @@ class JudgeTask(db.Model):
     retry_count = db.Column(db.Integer, default=0)
     last_error = db.Column(db.Text)
     debug_log_path = db.Column(db.String(255))
+
+    submission = db.relationship(
+        'Submission',
+        backref=db.backref('judge_task', uselist=False),
+        lazy='select',
+    )
 
     def __repr__(self):
         return f'<JudgeTask {self.id}: submission={self.submission_id} status={self.status}>'

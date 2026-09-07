@@ -1,8 +1,54 @@
 {% extends "admin/admin_base.html" %}
+{% block extra_head %}<meta http-equiv="refresh" content="10">{% endblock %}
 {% block admin_content %}
-<meta http-equiv="refresh" content="10">
 <h2>{{ t('admin.judge_monitor') }}</h2>
 <p style="color:var(--text-muted);font-size:.9em;">{{ t('admin.auto_refresh') }}</p>
+{#- Plain-language service health. /healthz answers the deployer in JSON; a
+    teacher needs uptime, judging state, and the last backup at a glance. -#}
+<section class="card">
+    <h3>{{ t('admin.service_health') }}</h3>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value {{ 'status-AC' if service_health.judging_ok else 'status-Failed' }}">
+                {{ t('admin.health_ok') if service_health.judging_ok else t('admin.health_attention') }}
+            </div>
+            <div class="stat-label">{{ t('admin.health_judging') }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ service_health.uptime or '-' }}</div>
+            <div class="stat-label">{{ t('admin.health_uptime') }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ service_health.today_count }}</div>
+            <div class="stat-label">{{ t('admin.stats_today') }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ service_health.pending_count }}</div>
+            <div class="stat-label">{{ t('admin.health_pending') }}</div>
+        </div>
+    </div>
+    <div class="table-wrap"><table class="summary-table">
+        <tr>
+            <th>{{ t('admin.health_last_backup') }}</th>
+            <td>
+                {% if not service_health.backups_enabled %}
+                    <span class="status-Failed">{{ t('admin.health_backup_disabled') }}</span>
+                {% elif service_health.backup_age %}
+                    {{ service_health.backup_age }}
+                    <span class="muted">({{ service_health.backup_name }}, {{ service_health.backup_size | file_size }})</span>
+                    {% if service_health.backup_stale %}<span class="status-Failed">{{ t('admin.health_backup_stale') }}</span>{% endif %}
+                {% else %}
+                    <span class="status-Failed">{{ t('admin.health_backup_none') }}</span>
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <th>{{ t('admin.health_backup_count') }}</th>
+            <td>{{ service_health.backup_count }} / {{ service_health.backup_keep }}
+                <span class="muted">{{ service_health.backup_dir }}</span></td>
+        </tr>
+    </table></div>
+</section>
 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:30px;">
     <div class="stat-card"><div class="stat-value">{{ t('admin.running') if judge_observability.engine_available and running else t('admin.stopped') if judge_observability.engine_available else '不可用' }}</div><div class="stat-label">{{ t('admin.judge_status') }}</div></div>
     <div class="stat-card"><div class="stat-value">{{ worker_count }}</div><div class="stat-label">{{ t('admin.worker_threads') }}</div></div>
@@ -24,8 +70,8 @@
         {% for limit in judge_observability.config_limits %}<div><dt>{{ limit.label }}</dt><dd style="margin:4px 0 0;font-weight:600;">{{ limit.value }}</dd></div>{% endfor %}
     </dl>
 </div>
-<div style="background:var(--surface);padding:20px;border-radius:8px;margin-bottom:30px;border:1px solid var(--border);"><h3>{{ t('admin.in_progress') }} ({{ active_task_list|length }})</h3>{% if active_task_list %}<table><thead><tr><th>{{ t('admin.task_id') }}</th><th>{{ t('admin.submission_id') }}</th><th>{{ t('admin.users') }}</th><th>{{ t('admin.problems') }}</th><th>{{ t('admin.worker_threads') }}</th><th>{{ t('admin.started_at') }}</th></tr></thead><tbody>{% for task in active_task_list %}<tr><td>#{{ task.id }}</td><td>#{{ task.submission_id }}</td><td>{{ task.submission.author.username if task.submission else '?' }}</td><td>{{ task.submission.problem.title if task.submission else '?' }}</td><td>{{ task.worker_id or '-' }}</td><td>{{ (task.started_at | local_datetime('%H:%M:%S')) if task.started_at else '-' }}</td></tr>{% endfor %}</tbody></table>{% else %}<p>{{ t('admin.empty_active_tasks') }}</p>{% endif %}</div>
-<div style="background:var(--surface);padding:20px;border-radius:8px;margin-bottom:30px;border:1px solid var(--border);"><h3>{{ t('admin.queued') }} ({{ queued_task_list|length }})</h3>{% if queued_task_list %}<table><thead><tr><th>{{ t('admin.task_id') }}</th><th>{{ t('admin.submission_id') }}</th><th>{{ t('admin.users') }}</th><th>{{ t('admin.problems') }}</th><th>{{ t('admin.created_at') }}</th></tr></thead><tbody>{% for task in queued_task_list %}<tr><td>#{{ task.id }}</td><td>#{{ task.submission_id }}</td><td>{{ task.submission.author.username if task.submission else '?' }}</td><td>{{ task.submission.problem.title if task.submission else '?' }}</td><td>{{ (task.created_at | local_datetime('%H:%M:%S')) if task.created_at else '-' }}</td></tr>{% endfor %}</tbody></table>{% else %}<p>{{ t('admin.empty_queued_tasks') }}</p>{% endif %}</div>
-<div style="background:var(--surface);padding:20px;border-radius:8px;border:1px solid var(--border);"><h3>{{ t('admin.completed') }} ({{ recent_tasks|length }})</h3>{% if recent_tasks %}<table><thead><tr><th>{{ t('admin.task_id') }}</th><th>{{ t('admin.submission_id') }}</th><th>{{ t('admin.users') }}</th><th>{{ t('admin.problems') }}</th><th>{{ t('submissions.status') }}</th><th>{{ t('admin.completed_at') }}</th></tr></thead><tbody>{% for task in recent_tasks %}<tr><td>#{{ task.id }}</td><td>#{{ task.submission_id }}</td><td>{{ task.submission.author.username if task.submission else '?' }}</td><td>{{ task.submission.problem.title if task.submission else '?' }}</td><td>{{ task.status }}</td><td>{{ (task.completed_at | local_datetime('%H:%M:%S')) if task.completed_at else '-' }}</td></tr>{% endfor %}</tbody></table>{% else %}<p>{{ t('admin.empty_completed_tasks') }}</p>{% endif %}</div>
+<div style="background:var(--surface);padding:20px;border-radius:8px;margin-bottom:30px;border:1px solid var(--border);"><h3>{{ t('admin.in_progress') }} ({{ active_task_list|length }})</h3>{% if active_task_list %}<div class="table-wrap"><table><thead><tr><th>{{ t('admin.task_id') }}</th><th>{{ t('admin.submission_id') }}</th><th>{{ t('admin.users') }}</th><th>{{ t('admin.problems') }}</th><th>{{ t('admin.worker_threads') }}</th><th>{{ t('admin.started_at') }}</th></tr></thead><tbody>{% for task in active_task_list %}<tr><td>#{{ task.id }}</td><td>#{{ task.submission_id }}</td><td>{{ task.submission.author.username if task.submission else '?' }}</td><td>{{ task.submission.problem.title if task.submission else '?' }}</td><td>{{ task.worker_id or '-' }}</td><td>{{ (task.started_at | local_datetime('%H:%M:%S')) if task.started_at else '-' }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p>{{ t('admin.empty_active_tasks') }}</p>{% endif %}</div>
+<div style="background:var(--surface);padding:20px;border-radius:8px;margin-bottom:30px;border:1px solid var(--border);"><h3>{{ t('admin.queued') }} ({{ queued_task_list|length }})</h3>{% if queued_task_list %}<div class="table-wrap"><table><thead><tr><th>{{ t('admin.task_id') }}</th><th>{{ t('admin.submission_id') }}</th><th>{{ t('admin.users') }}</th><th>{{ t('admin.problems') }}</th><th>{{ t('admin.created_at') }}</th></tr></thead><tbody>{% for task in queued_task_list %}<tr><td>#{{ task.id }}</td><td>#{{ task.submission_id }}</td><td>{{ task.submission.author.username if task.submission else '?' }}</td><td>{{ task.submission.problem.title if task.submission else '?' }}</td><td>{{ (task.created_at | local_datetime('%H:%M:%S')) if task.created_at else '-' }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p>{{ t('admin.empty_queued_tasks') }}</p>{% endif %}</div>
+<div style="background:var(--surface);padding:20px;border-radius:8px;border:1px solid var(--border);"><h3>{{ t('admin.completed') }} ({{ recent_tasks|length }})</h3>{% if recent_tasks %}<div class="table-wrap"><table><thead><tr><th>{{ t('admin.task_id') }}</th><th>{{ t('admin.submission_id') }}</th><th>{{ t('admin.users') }}</th><th>{{ t('admin.problems') }}</th><th>{{ t('submissions.status') }}</th><th>{{ t('admin.completed_at') }}</th></tr></thead><tbody>{% for task in recent_tasks %}<tr><td>#{{ task.id }}</td><td>#{{ task.submission_id }}</td><td>{{ task.submission.author.username if task.submission else '?' }}</td><td>{{ task.submission.problem.title if task.submission else '?' }}</td><td>{{ task.status }}</td><td>{{ (task.completed_at | local_datetime('%H:%M:%S')) if task.completed_at else '-' }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p>{{ t('admin.empty_completed_tasks') }}</p>{% endif %}</div>
 <div style="margin-top:20px;"><a href="{{ url_for('admin.dashboard') }}" class="btn btn-primary">{{ t('admin.back_dashboard') }}</a></div>
 {% endblock %}

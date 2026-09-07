@@ -53,7 +53,9 @@ def test_chinese_fixed_text_covers_auth_problem_and_contest_pages(client, app):
 
     _set_locale(client, 'zh-CN')
     login_body = client.get('/login').get_data(as_text=True)
-    problem_body = client.get('/problems').get_data(as_text=True)
+    # Search instead of assuming page 1: the list is ordered by problem id, so a
+    # problem created late in the suite legitimately sits on a later page.
+    problem_body = client.get('/problems?q=DB+Problem+Title').get_data(as_text=True)
     contest_body = client.get('/contests').get_data(as_text=True)
 
     assert '登录' in login_body

@@ -6,7 +6,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app import create_app
 
-config_name = 'development'
+# FLASK_ENV was documented in .env.example but never read, so an operator who set
+# it to "production" silently got the development profile with DEBUG on.
+config_name = os.environ.get('FLASK_ENV', 'development')
 if len(sys.argv) > 1:
     config_name = sys.argv[1]
 

@@ -81,6 +81,41 @@
             }
         }
 
+        function migrateAnonymousDrafts(userScope) {
+            // Drafts are namespaced by scope, so signing in changed the key and the
+            // editor came up empty on a problem the student had just been writing.
+            if (!storage || !sessionStore || !userScope) {
+                return;
+            }
+            try {
+                var anonymousScope = sessionStore.getItem('easyoj:anonymous-draft-scope');
+                if (!anonymousScope || anonymousScope === userScope) {
+                    return;
+                }
+                var prefix = 'easyoj:draft:' + anonymousScope + ':';
+                var staleKeys = [];
+                for (var i = 0; i < storage.length; i += 1) {
+                    var key = storage.key(i);
+                    if (key && key.indexOf(prefix) === 0) {
+                        staleKeys.push(key);
+                    }
+                }
+                staleKeys.forEach(function (key) {
+                    var target = 'easyoj:draft:' + userScope + ':' + key.slice(prefix.length);
+                    if (storage.getItem(target) === null) {
+                        storage.setItem(target, storage.getItem(key));
+                    }
+                    storage.removeItem(key);
+                });
+                sessionStore.removeItem('easyoj:anonymous-draft-scope');
+            } catch (error) {
+                // Never let draft migration break the editor.
+            }
+        }
+
+        if (draftScope) {
+            migrateAnonymousDrafts(draftScope);
+        }
         draftScope = getAnonymousScope();
 
         function draftKey() {
@@ -151,6 +186,9 @@
         }
 
         function consumeCompletedSubmission() {
+            // Clear the submission markers but keep the draft: after a wrong answer
+            // the student comes straight back here to fix their code, and deleting
+            // it forced them to copy it out of the submission page by hand.
             var completed = readSessionValue('easyoj:submission-complete');
             if (!completed) {
                 return;
@@ -158,8 +196,7 @@
             try {
                 var marker = JSON.parse(completed);
                 if (marker.key === draftKey()) {
-                    storage.removeItem(draftKey());
-                    setDraftStatus(workspace.dataset.draftCleared);
+                    setDraftStatus(workspace.dataset.draftSubmitted || workspace.dataset.draftSaved);
                     sessionStore.removeItem('easyoj:submission-complete');
                     sessionStore.removeItem('easyoj:submission-pending');
                 }
@@ -352,11 +389,34 @@
             }
         });
         language.addEventListener('change', function () {
+            // Drafts are stored per language. Switching used to blank the editor with
+            // no warning, which looks exactly like losing your work, so carry the
+            // current text over when the target language has nothing saved yet.
+            var carried = editorController.getValue();
             flushDraftSave();
             currentLanguage = language.value;
             editorController.setLanguage(currentLanguage);
-            loadDraft(false);
-            setDraftStatus(workspace.dataset.ready);
+            var existing = null;
+            if (storage) {
+                try {
+                    existing = storage.getItem(draftKey());
+                } catch (error) {
+                    existing = null;
+                }
+            }
+            if (existing !== null) {
+                editorController.setValue(existing);
+                updateLineNumbers();
+                setDraftStatus(workspace.dataset.draftRestored || workspace.dataset.ready);
+            } else if (carried) {
+                editorController.setValue(carried);
+                updateLineNumbers();
+                persistDraft();
+                setDraftStatus(workspace.dataset.draftCarried || workspace.dataset.draftSaved);
+            } else {
+                loadDraft(false);
+                setDraftStatus(workspace.dataset.ready);
+            }
         });
         if (runButton) {
             runButton.addEventListener('click', runCode);
@@ -375,6 +435,13 @@
         }
         workspace.querySelectorAll('[data-clear-draft]').forEach(function (button) {
             button.addEventListener('click', function () {
+                // This deletes the only copy of the student's code and sits next to
+                // Submit, so confirm before discarding a non-empty editor.
+                var confirmMessage = workspace.dataset.confirmClearDraft;
+                if (editorController.getValue() && confirmMessage
+                        && !window.confirm(confirmMessage)) {
+                    return;
+                }
                 if (draftTimer !== null) {
                     window.clearTimeout(draftTimer);
                     draftTimer = null;

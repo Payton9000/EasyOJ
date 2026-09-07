@@ -38,6 +38,29 @@ def find_active_contest_problem(problem_id, user_id, now=None):
     )
 
 
+def problem_in_running_contest(problem_id, now=None):
+    """Return the running contest-problem row that owns this problem, if any.
+
+    Deliberately independent of contest registration: a problem used by a live
+    contest must stay locked for every account, otherwise a non-participant can
+    reach the practice path and read expected output from the judge report.
+    """
+    if not problem_id:
+        return None
+
+    now = now or datetime.utcnow()
+    return (
+        ContestProblem.query.join(Contest, Contest.id == ContestProblem.contest_id)
+        .filter(
+            ContestProblem.problem_id == problem_id,
+            Contest.start_time <= now,
+            Contest.end_time > now,
+        )
+        .order_by(Contest.start_time.asc(), Contest.id.asc())
+        .first()
+    )
+
+
 def submission_is_in_active_contest(submission, now=None):
     """Protect both scoped submissions and legacy rows missing ``contest_id``."""
     now = now or datetime.utcnow()
@@ -45,7 +68,7 @@ def submission_is_in_active_contest(submission, now=None):
         contest = db.session.get(Contest, submission.contest_id)
         return bool(contest and contest.start_time <= now < contest.end_time)
 
-    return find_active_contest_problem(submission.problem_id, submission.user_id, now) is not None
+    return problem_in_running_contest(submission.problem_id, now) is not None
 
 
 def enqueue_submission(submission):

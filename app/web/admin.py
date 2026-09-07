@@ -19,6 +19,8 @@ from flask import request
 from flask import url_for
 from flask_login import current_user
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import defer
+from sqlalchemy.orm import joinedload
 
 from app import db
 from app.i18n import translate as t
@@ -39,6 +41,7 @@ from app.utils.file_utils import validate_testcase_directory
 from app.utils.file_utils import validate_testcase_storage
 from app.utils.file_utils import validate_testcase_upload
 from app.utils.file_utils import validate_upload_filename
+from app.utils.http import safe_referrer as _safe_referrer
 from app.utils.time_utils import parse_local_datetime_to_utc
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -138,7 +141,16 @@ def dashboard():
     ).count()
 
     # 最近20条提交
-    recent_submissions = Submission.query.order_by(Submission.submitted_at.desc()).limit(20).all()
+    recent_submissions = (
+        Submission.query.options(
+            joinedload(Submission.author),
+            joinedload(Submission.problem),
+            defer(Submission.code),
+        )
+        .order_by(Submission.submitted_at.desc())
+        .limit(20)
+        .all()
+    )
 
     return render_template(
         'admin/dashboard.html',
@@ -172,7 +184,7 @@ def problems_list():
     if difficulty:
         query = query.filter(Problem.difficulty == difficulty)
 
-    paginated = query.paginate(page=page, per_page=20, error_out=False)
+    paginated = query.order_by(Problem.id.asc()).paginate(page=page, per_page=20, error_out=False)
 
     return render_template(
         'admin/problems.html',
@@ -183,59 +195,96 @@ def problems_list():
     )
 
 
+TIME_LIMIT_RANGE_MS = (100, 30000)
+MEMORY_LIMIT_RANGE_MB = (16, 1024)
+DIFFICULTIES = ('easy', 'medium', 'hard')
+SUBMISSION_STATUS_CODES = (
+    'Pending',
+    'Queued',
+    'Judging',
+    'AC',
+    'WA',
+    'TLE',
+    'MLE',
+    'OLE',
+    'RE',
+    'CE',
+    'Failed',
+    'SystemError',
+)
+
+
+def _parse_problem_form(form):
+    """Validate the problem form, returning (values, errors).
+
+    Out-of-range limits used to be silently replaced with defaults while the page
+    still reported success, so a teacher's 50 ms limit became 1000 ms with no
+    notice. They are reported as errors now.
+    """
+    values = {
+        'title': form.get('title', '').strip(),
+        'description': form.get('description', '').strip(),
+        'input_description': form.get('input_description', '').strip(),
+        'output_description': form.get('output_description', '').strip(),
+        'sample_input': form.get('sample_input', '').strip(),
+        'sample_output': form.get('sample_output', '').strip(),
+        'source': form.get('source', '').strip(),
+        'difficulty': form.get('difficulty', 'medium').strip().lower(),
+        'is_public': 'is_public' in form,
+        'time_limit': form.get('time_limit', '').strip(),
+        'memory_limit': form.get('memory_limit', '').strip(),
+    }
+    errors = []
+    if not values['title'] or not values['description']:
+        errors.append(t('admin.title_required'))
+    if values['difficulty'] not in DIFFICULTIES:
+        values['difficulty'] = 'medium'
+
+    low_t, high_t = TIME_LIMIT_RANGE_MS
+    low_m, high_m = MEMORY_LIMIT_RANGE_MB
+    try:
+        time_limit = int(values['time_limit'] or 1000)
+        memory_limit = int(values['memory_limit'] or 256)
+    except ValueError:
+        errors.append(t('admin.limits_integer'))
+        return values, errors
+
+    if not (low_t <= time_limit <= high_t):
+        errors.append(t('admin.time_limit_range', low=low_t, high=high_t))
+    if not (low_m <= memory_limit <= high_m):
+        errors.append(t('admin.memory_limit_range', low=low_m, high=high_m))
+    values['time_limit'] = time_limit
+    values['memory_limit'] = memory_limit
+    return values, errors
+
+
 @admin_bp.route('/problem/create', methods=['GET', 'POST'])
 @admin_required
 def create_problem():
     """创建题目"""
     if request.method == 'GET':
-        return render_template('admin/problem_form.html', problem=None)
+        return render_template('admin/problem_form.html', problem=None, form=None)
 
-    # POST 请求
-    title = request.form.get('title', '').strip()
-    description = request.form.get('description', '').strip()
-    input_description = request.form.get('input_description', '').strip()
-    output_description = request.form.get('output_description', '').strip()
-    sample_input = request.form.get('sample_input', '').strip()
-    sample_output = request.form.get('sample_output', '').strip()
+    values, errors = _parse_problem_form(request.form)
+    if errors:
+        for message in errors:
+            flask_flash(message, 'error')
+        # Echo the submitted values back: a single bad field must not discard a
+        # statement the teacher just spent time writing.
+        return render_template('admin/problem_form.html', problem=None, form=values)
 
-    # 验证必填字段
-    if not title or not description:
-        flash('标题和描述不能为空', 'error')
-        return render_template('admin/problem_form.html', problem=None)
-
-    # 获取并验证时间和内存限制
-    try:
-        time_limit = int(request.form.get('time_limit', 1000))
-        memory_limit = int(request.form.get('memory_limit', 256))
-    except ValueError:
-        flash('时间和内存限制必须为整数', 'error')
-        return render_template('admin/problem_form.html', problem=None)
-
-    if not (100 <= time_limit <= 30000):
-        time_limit = 1000
-
-    if not (16 <= memory_limit <= 1024):
-        memory_limit = 256
-
-    difficulty = request.form.get('difficulty', 'medium').strip().lower()
-    if difficulty not in {'easy', 'medium', 'hard'}:
-        difficulty = 'medium'
-    source = request.form.get('source', '').strip()
-    is_public = 'is_public' in request.form
-
-    # 创建题目
     problem = Problem(
-        title=title,
-        description=description,
-        input_description=input_description,
-        output_description=output_description,
-        sample_input=sample_input,
-        sample_output=sample_output,
-        time_limit=time_limit,
-        memory_limit=memory_limit,
-        difficulty=difficulty,
-        source=source,
-        is_public=is_public,
+        title=values['title'],
+        description=values['description'],
+        input_description=values['input_description'],
+        output_description=values['output_description'],
+        sample_input=values['sample_input'],
+        sample_output=values['sample_output'],
+        time_limit=values['time_limit'],
+        memory_limit=values['memory_limit'],
+        difficulty=values['difficulty'],
+        source=values['source'],
+        is_public=values['is_public'],
         created_by=current_user.id,
     )
 
@@ -249,7 +298,9 @@ def create_problem():
     ensure_dir(testcase_dir)
 
     flash('题目创建成功', 'success')
-    return redirect(url_for('admin.problems_list'))
+    # Land on the edit page: uploading testcases is the required next step and its
+    # form only exists there, so the list view was a dead end for a new problem.
+    return redirect(url_for('admin.edit_problem', problem_id=problem.id))
 
 
 @admin_bp.route('/problem/<int:problem_id>/edit', methods=['GET', 'POST'])
@@ -259,42 +310,25 @@ def edit_problem(problem_id):
     problem = Problem.query.get_or_404(problem_id)
 
     if request.method == 'GET':
-        return render_template('admin/problem_form.html', problem=problem)
+        return render_template('admin/problem_form.html', problem=problem, form=None)
 
-    # POST 请求
-    title = request.form.get('title', '').strip()
-    description = request.form.get('description', '').strip()
+    values, errors = _parse_problem_form(request.form)
+    if errors:
+        for message in errors:
+            flask_flash(message, 'error')
+        return render_template('admin/problem_form.html', problem=problem, form=values)
 
-    if not title or not description:
-        flash('标题和描述不能为空', 'error')
-        return render_template('admin/problem_form.html', problem=problem)
-
-    try:
-        time_limit = int(request.form.get('time_limit', 1000))
-        memory_limit = int(request.form.get('memory_limit', 256))
-    except ValueError:
-        flash('时间和内存限制必须为整数', 'error')
-        return render_template('admin/problem_form.html', problem=problem)
-
-    if not (100 <= time_limit <= 30000):
-        time_limit = 1000
-
-    if not (16 <= memory_limit <= 1024):
-        memory_limit = 256
-
-    # 更新字段
-    problem.title = title
-    problem.description = description
-    problem.input_description = request.form.get('input_description', '').strip()
-    problem.output_description = request.form.get('output_description', '').strip()
-    problem.sample_input = request.form.get('sample_input', '').strip()
-    problem.sample_output = request.form.get('sample_output', '').strip()
-    problem.time_limit = time_limit
-    problem.memory_limit = memory_limit
-    difficulty = request.form.get('difficulty', 'medium').strip().lower()
-    problem.difficulty = difficulty if difficulty in {'easy', 'medium', 'hard'} else 'medium'
-    problem.source = request.form.get('source', '').strip()
-    problem.is_public = 'is_public' in request.form
+    problem.title = values['title']
+    problem.description = values['description']
+    problem.input_description = values['input_description']
+    problem.output_description = values['output_description']
+    problem.sample_input = values['sample_input']
+    problem.sample_output = values['sample_output']
+    problem.time_limit = values['time_limit']
+    problem.memory_limit = values['memory_limit']
+    problem.difficulty = values['difficulty']
+    problem.source = values['source']
+    problem.is_public = values['is_public']
 
     db.session.commit()
     flash('题目更新成功', 'success')
@@ -354,7 +388,7 @@ def toggle_problem_public(problem_id):
 
     status = '已公开' if problem.is_public else '已隐藏'
     flash(f'题目已{status}', 'success')
-    return redirect(request.referrer or url_for('admin.problems_list'))
+    return redirect(_safe_referrer(url_for('admin.problems_list')))
 
 
 @admin_bp.route('/problem/<int:problem_id>/upload_testcase', methods=['POST'])
@@ -586,55 +620,91 @@ def contests_list():
     )
 
 
+MAX_PARTICIPANTS_RANGE = (0, 100000)
+
+
+def _parse_contest_form(form, existing=None):
+    """Validate the contest form, returning (values, errors).
+
+    ``existing`` switches to edit semantics: the start time of a contest that has
+    already begun is pinned, and a blank password field keeps the stored password
+    instead of erasing it.
+    """
+    values = {
+        'title': form.get('title', '').strip(),
+        'description': form.get('description', '').strip(),
+        'is_public': 'is_public' in form,
+        'is_sealed': 'is_sealed' in form,
+        'clear_password': 'clear_password' in form,
+        'password': form.get('password', '').strip(),
+        'start_time_raw': form.get('start_time', ''),
+        'end_time_raw': form.get('end_time', ''),
+        'max_participants': form.get('max_participants', '').strip(),
+        'start_time': None,
+        'end_time': None,
+    }
+    errors = []
+    if not values['title']:
+        errors.append(t('admin.contest_title_required'))
+
+    try:
+        start_time = _parse_local_datetime_to_utc(values['start_time_raw'])
+        end_time = _parse_local_datetime_to_utc(values['end_time_raw'])
+    except (ValueError, TypeError):
+        errors.append(t('admin.datetime_invalid'))
+        return values, errors
+
+    started = existing is not None and existing.status in ('Running', 'Ended')
+    if started:
+        # The start time is history at this point; keep it and say so.
+        if start_time != existing.start_time:
+            flask_flash(t('admin.start_started'), 'warning')
+        start_time = existing.start_time
+
+    if start_time >= end_time:
+        errors.append(
+            t('admin.end_time_not_before_start') if started else t('admin.start_before_end')
+        )
+    if existing is None and start_time < datetime.utcnow():
+        errors.append(t('admin.start_not_past'))
+
+    low, high = MAX_PARTICIPANTS_RANGE
+    try:
+        max_participants = int(values['max_participants'] or 0)
+    except ValueError:
+        errors.append(t('admin.participants_range', low=low, high=high))
+        return values, errors
+    if not (low <= max_participants <= high):
+        errors.append(t('admin.participants_range', low=low, high=high))
+
+    values['start_time'] = start_time
+    values['end_time'] = end_time
+    values['max_participants'] = max_participants
+    return values, errors
+
+
 @admin_bp.route('/contest/create', methods=['GET', 'POST'])
 @admin_required
 def create_contest():
     """创建竞赛"""
     if request.method == 'GET':
-        return render_template('admin/contest_form.html', contest=None)
+        return render_template('admin/contest_form.html', contest=None, form=None)
 
-    # POST 请求
-    title = request.form.get('title', '').strip()
-
-    if not title:
-        flash('竞赛标题不能为空', 'error')
-        return render_template('admin/contest_form.html', contest=None)
-
-    try:
-        start_time = _parse_local_datetime_to_utc(request.form.get('start_time'))
-        end_time = _parse_local_datetime_to_utc(request.form.get('end_time'))
-    except (ValueError, TypeError):
-        flash('开始时间和结束时间格式错误', 'error')
-        return render_template('admin/contest_form.html', contest=None)
-
-    if start_time >= end_time:
-        flash('开始时间必须早于结束时间', 'error')
-        return render_template('admin/contest_form.html', contest=None)
-
-    if start_time < datetime.utcnow():
-        flash('开始时间不能早于当前时间', 'error')
-        return render_template('admin/contest_form.html', contest=None)
-
-    description = request.form.get('description', '').strip()
-    is_public = 'is_public' in request.form
-    is_sealed = 'is_sealed' in request.form
-    password = request.form.get('password', '').strip()
-
-    try:
-        max_participants = int(request.form.get('max_participants', 0))
-    except ValueError:
-        max_participants = 0
-    max_participants = max(0, min(max_participants, 100000))
+    values, errors = _parse_contest_form(request.form)
+    if errors:
+        for message in errors:
+            flask_flash(message, 'error')
+        return render_template('admin/contest_form.html', contest=None, form=values)
 
     contest = Contest(
-        title=title,
-        description=description,
-        start_time=start_time,
-        end_time=end_time,
-        is_public=is_public,
-        is_sealed=is_sealed,
-        password=password,
-        max_participants=max_participants,
+        title=values['title'],
+        description=values['description'],
+        start_time=values['start_time'],
+        end_time=values['end_time'],
+        is_public=values['is_public'],
+        is_sealed=values['is_sealed'],
+        password=values['password'],
+        max_participants=values['max_participants'],
         created_by=current_user.id,
     )
 
@@ -652,52 +722,33 @@ def edit_contest(contest_id):
     contest = Contest.query.get_or_404(contest_id)
 
     if request.method == 'GET':
-        return render_template('admin/contest_form.html', contest=contest)
+        return render_template('admin/contest_form.html', contest=contest, form=None)
 
-    # POST 请求
-    title = request.form.get('title', '').strip()
+    values, errors = _parse_contest_form(request.form, existing=contest)
+    if errors:
+        for message in errors:
+            flask_flash(message, 'error')
+        return render_template('admin/contest_form.html', contest=contest, form=values)
 
-    if not title:
-        flash('竞赛标题不能为空', 'error')
-        return render_template('admin/contest_form.html', contest=contest)
+    was_running = contest.status == 'Running'
+    contest.title = values['title']
+    contest.description = values['description']
+    contest.start_time = values['start_time']
+    contest.end_time = values['end_time']
+    contest.is_public = values['is_public']
+    contest.is_sealed = values['is_sealed']
+    contest.max_participants = values['max_participants']
 
-    try:
-        start_time = _parse_local_datetime_to_utc(request.form.get('start_time'))
-        end_time = _parse_local_datetime_to_utc(request.form.get('end_time'))
-    except (ValueError, TypeError):
-        flash('开始时间和结束时间格式错误', 'error')
-        return render_template('admin/contest_form.html', contest=contest)
-
-    if start_time >= end_time:
-        flash('开始时间必须早于结束时间', 'error')
-        return render_template('admin/contest_form.html', contest=contest)
-
-    # 已开始的竞赛只能修改某些字段
-    if contest.status in ['Running', 'Ended']:
-        flash('已开始的竞赛不能修改开始时间', 'warning')
-        start_time = contest.start_time
-
-    description = request.form.get('description', '').strip()
-    is_public = 'is_public' in request.form
-    is_sealed = 'is_sealed' in request.form
-    password = request.form.get('password', '').strip()
-
-    try:
-        max_participants = int(request.form.get('max_participants', 0))
-    except ValueError:
-        max_participants = 0
-    max_participants = max(0, min(max_participants, 100000))
-
-    contest.title = title
-    contest.description = description
-    contest.start_time = start_time
-    contest.end_time = end_time
-    contest.is_public = is_public
-    contest.is_sealed = is_sealed
-    contest.password = password
-    contest.max_participants = max_participants
+    # The stored value is a hash and cannot be rendered back into the form, so a
+    # blank field used to wipe the password and silently open a private contest.
+    if values['clear_password']:
+        contest.password = None
+    elif values['password']:
+        contest.password = values['password']
 
     db.session.commit()
+    if was_running and contest.status == 'Ended':
+        flask_flash(t('admin.end_time_shortened'), 'warning')
     flash('竞赛更新成功', 'success')
     return redirect(url_for('admin.contests_list'))
 
@@ -733,6 +784,26 @@ def delete_contest(contest_id):
     return redirect(url_for('admin.contests_list'))
 
 
+def _next_contest_alias(contest_id):
+    """Pick the first unused A, B, C... label for a contest problem.
+
+    Aliases address problems in URLs, so one must always exist.
+    """
+    taken = {
+        (row.alias or '').strip().upper()
+        for row in ContestProblem.query.filter_by(contest_id=contest_id).all()
+    }
+    for offset in range(26):
+        candidate = chr(ord('A') + offset)
+        if candidate not in taken:
+            return candidate
+    for offset in range(1, 1000):
+        candidate = f'P{offset}'
+        if candidate not in taken:
+            return candidate
+    return 'Z'
+
+
 @admin_bp.route('/contest/<int:contest_id>/problems', methods=['GET', 'POST'])
 @admin_required
 def contest_problems(contest_id):
@@ -763,11 +834,16 @@ def contest_problems(contest_id):
             or -1
         )
 
+        # An empty alias used to be stored as NULL, which then broke every URL
+        # built for this problem and returned 500 for the whole contest page.
+        if not alias:
+            alias = _next_contest_alias(contest_id)
+
         cp = ContestProblem(
             contest_id=contest_id,
             problem_id=problem_id,
             display_order=max_order + 1,
-            alias=alias if alias else None,
+            alias=alias,
         )
 
         db.session.add(cp)
@@ -816,10 +892,19 @@ def remove_contest_problem(contest_id, problem_id):
 def contest_participants(contest_id):
     """管理竞赛参赛者"""
     contest = Contest.query.get_or_404(contest_id)
-    participants = ContestParticipant.query.filter_by(contest_id=contest_id).all()
+    page = request.args.get('page', 1, type=int)
+    paginated = (
+        ContestParticipant.query.filter_by(contest_id=contest_id)
+        .options(joinedload(ContestParticipant.user))
+        .order_by(ContestParticipant.joined_at.asc(), ContestParticipant.id.asc())
+        .paginate(page=page, per_page=50, error_out=False)
+    )
 
     return render_template(
-        'admin/contest_participants.html', contest=contest, participants=participants
+        'admin/contest_participants.html',
+        contest=contest,
+        participants=paginated.items,
+        paginated=paginated,
     )
 
 
@@ -833,12 +918,15 @@ def add_participant(contest_id):
     user_id = request.form.get('user_id', type=int)
     user = None
 
+    username = request.form.get('username', '').strip()
     if user_id:
         user = db.session.get(User, user_id)
+    elif username:
+        user = User.query.filter_by(username=username).first()
     else:
-        username = request.form.get('username', '').strip()
-        if username:
-            user = User.query.filter_by(username=username).first()
+        # Reporting "user not found" for an empty box misdiagnosed the problem.
+        flask_flash(t('admin.username_required'), 'error')
+        return redirect(url_for('admin.contest_participants', contest_id=contest_id))
 
     if not user:
         flash('用户不存在', 'error')
@@ -857,7 +945,31 @@ def add_participant(contest_id):
 
     cp = ContestParticipant(contest_id=contest_id, user_id=user.id)
     db.session.add(cp)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash('该用户已是参赛者', 'error')
+        return redirect(url_for('admin.contest_participants', contest_id=contest_id))
+
+    # The cap check is a read, so concurrent additions could both pass it. Admit
+    # the row, then withdraw it if this request is the one that overshot.
+    if contest.max_participants:
+        placed = (
+            db.session.query(db.func.count(ContestParticipant.id))
+            .filter(
+                ContestParticipant.contest_id == contest_id,
+                ContestParticipant.is_disqualified.is_(False),
+                ContestParticipant.id <= cp.id,
+            )
+            .scalar()
+            or 0
+        )
+        if placed > contest.max_participants:
+            db.session.delete(cp)
+            db.session.commit()
+            flash('参赛人数已达上限', 'error')
+            return redirect(url_for('admin.contest_participants', contest_id=contest_id))
 
     flash('参赛者添加成功', 'success')
     return redirect(url_for('admin.contest_participants', contest_id=contest_id))
@@ -895,7 +1007,11 @@ def contest_submissions(contest_id):
     contest = Contest.query.get_or_404(contest_id)
     page = request.args.get('page', 1, type=int)
 
-    query = Submission.query.filter_by(contest_id=contest_id)
+    query = Submission.query.filter_by(contest_id=contest_id).options(
+        joinedload(Submission.author),
+        joinedload(Submission.problem),
+        defer(Submission.code),
+    )
 
     paginated = query.order_by(Submission.submitted_at.desc()).paginate(
         page=page, per_page=30, error_out=False
@@ -938,7 +1054,7 @@ def users_list():
     if role:
         query = query.filter(User.role == role)
 
-    paginated = query.paginate(page=page, per_page=20, error_out=False)
+    paginated = query.order_by(User.id.asc()).paginate(page=page, per_page=20, error_out=False)
 
     user_ids = [user.id for user in paginated.items]
     submission_counts = {}
@@ -992,6 +1108,7 @@ def user_detail(user_id):
     # 最近提交
     recent_submissions = (
         Submission.query.filter_by(user_id=user_id)
+        .options(joinedload(Submission.problem), defer(Submission.code))
         .order_by(Submission.submitted_at.desc())
         .limit(20)
         .all()
@@ -1027,11 +1144,11 @@ def toggle_user_active(user_id):
             'This account change would remove your access or the last active administrator.',
             'error',
         )
-        return redirect(request.referrer or url_for('admin.users_list'))
+        return redirect(_safe_referrer(url_for('admin.users_list')))
 
     status = '已启用' if user.is_active else '已禁用'
     flash(f'用户{status}', 'success')
-    return redirect(request.referrer or url_for('admin.users_list'))
+    return redirect(_safe_referrer(url_for('admin.users_list')))
 
 
 @admin_bp.route('/user/<int:user_id>/toggle_role', methods=['POST'])
@@ -1040,7 +1157,7 @@ def toggle_user_role(user_id):
     """切换用户角色"""
     if user_id == current_user.id:
         flash('不能修改自己的角色', 'error')
-        return redirect(request.referrer or url_for('admin.users_list'))
+        return redirect(_safe_referrer(url_for('admin.users_list')))
 
     user = User.query.get_or_404(user_id)
     if not AccountService.toggle_role(user, current_user):
@@ -1048,11 +1165,11 @@ def toggle_user_role(user_id):
             'This account change would remove your access or the last active administrator.',
             'error',
         )
-        return redirect(request.referrer or url_for('admin.users_list'))
+        return redirect(_safe_referrer(url_for('admin.users_list')))
 
     role_name = '管理员' if user.role == 'admin' else '普通用户'
     flash(f'用户角色已更改为 {role_name}', 'success')
-    return redirect(request.referrer or url_for('admin.users_list'))
+    return redirect(_safe_referrer(url_for('admin.users_list')))
 
 
 @admin_bp.route('/user/<int:user_id>/reset_password', methods=['POST'])
@@ -1083,7 +1200,12 @@ def submissions_list():
     problem_id = request.args.get('problem_id', type=int)
     status = request.args.get('status', type=str)
 
-    query = Submission.query
+    query = Submission.query.options(
+        joinedload(Submission.author),
+        joinedload(Submission.problem),
+        joinedload(Submission.contest),
+        defer(Submission.code),
+    )
 
     if user_id:
         query = query.filter_by(user_id=user_id)
@@ -1097,7 +1219,13 @@ def submissions_list():
     )
 
     return render_template(
-        'admin/submissions.html', submissions=paginated.items, paginated=paginated
+        'admin/submissions.html',
+        submissions=paginated.items,
+        paginated=paginated,
+        user_id=user_id,
+        problem_id=problem_id,
+        status=status,
+        status_codes=SUBMISSION_STATUS_CODES,
     )
 
 
@@ -1106,6 +1234,8 @@ def submissions_list():
 def rejudge_submission(submission_id):
     """重新判题"""
     submission = Submission.query.get_or_404(submission_id)
+    previous_status = submission.status
+    previous_judged_at = submission.judged_at
 
     # 删除旧的 JudgeTask
     JudgeTask.query.filter_by(submission_id=submission_id).delete()
@@ -1115,12 +1245,19 @@ def rejudge_submission(submission_id):
     submission.judged_at = None
     db.session.commit()
 
-    # 提交新的判题任务
-    if hasattr(current_app, 'judge_engine'):
-        current_app.judge_engine.submit_judge_task(submission_id)
+    engine = getattr(current_app, 'judge_engine', None)
+    queued = bool(engine and engine.submit_judge_task(submission_id))
+    if not queued:
+        # The return value used to be ignored, so a full queue left the submission
+        # stuck on Pending forever while the page still reported success.
+        submission.status = previous_status
+        submission.judged_at = previous_judged_at
+        db.session.commit()
+        flask_flash(t('admin.rejudge_failed'), 'error')
+        return redirect(_safe_referrer(url_for('admin.submissions_list')))
 
     flash('已重新提交判题任务', 'success')
-    return redirect(request.referrer or url_for('admin.submissions_list'))
+    return redirect(_safe_referrer(url_for('admin.submissions_list')))
 
 
 _JUDGE_UNAVAILABLE = '不可用'
@@ -1272,6 +1409,85 @@ def _judge_observability(engine):
     }
 
 
+def _format_age(moment):
+    """Describe how long ago something happened, in words a teacher can act on."""
+    if moment is None:
+        return None
+    seconds = max(0, (datetime.utcnow() - moment).total_seconds())
+    if seconds < 90:
+        return t('admin.age_just_now')
+    minutes = seconds / 60
+    if minutes < 60:
+        return t('admin.age_minutes', value=int(minutes))
+    hours = minutes / 60
+    if hours < 48:
+        return t('admin.age_hours', value=round(hours, 1))
+    return t('admin.age_days', value=int(hours / 24))
+
+
+def _service_health():
+    """Plain-language service status for the administrator page.
+
+    The /healthz endpoint returns JSON for the deployment assistant; a teacher
+    needs to see uptime, whether judging is alive, and when the data was last
+    backed up, without reading a log file.
+    """
+    from app.utils.backup import latest_backup
+    from app.utils.backup import list_backups
+
+    engine = getattr(current_app, 'judge_engine', None)
+    workers_alive = 0
+    if engine is not None:
+        try:
+            workers_alive = len(
+                [w for w in getattr(engine, 'worker_processes', []) if w.is_alive()]
+            )
+        except Exception:
+            workers_alive = 0
+
+    started_at = current_app.config.get('SERVICE_STARTED_AT')
+    backup_dir = current_app.config.get('BACKUP_DIR') or ''
+    newest = latest_backup(backup_dir) if backup_dir else None
+    backup_time = None
+    backup_size = 0
+    if newest is not None:
+        try:
+            stat = newest.stat()
+            backup_time = datetime.utcfromtimestamp(stat.st_mtime)
+            backup_size = stat.st_size
+        except OSError:
+            newest = None
+
+    judging_ok = bool(engine and getattr(engine, 'is_running', False) and workers_alive)
+    backups_enabled = bool(current_app.config.get('BACKUP_ENABLED', True))
+    # A backup older than three intervals means the scheduler is not keeping up.
+    interval = max(600, int(current_app.config.get('BACKUP_INTERVAL_SECONDS', 24 * 3600)))
+    backup_stale = backups_enabled and (
+        backup_time is None or (datetime.utcnow() - backup_time).total_seconds() > interval * 3
+    )
+
+    return {
+        'judging_ok': judging_ok,
+        'workers_alive': workers_alive,
+        'uptime': _format_age(started_at) if started_at else None,
+        'pending_count': Submission.query.filter(
+            Submission.status.in_(['Pending', 'Queued', 'Judging'])
+        ).count(),
+        'today_count': Submission.query.filter(
+            Submission.submitted_at
+            >= datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        ).count(),
+        'backups_enabled': backups_enabled,
+        'backup_name': newest.name if newest else None,
+        'backup_age': _format_age(backup_time),
+        'backup_size': backup_size,
+        'backup_count': len(list_backups(backup_dir)) if backup_dir else 0,
+        'backup_keep': current_app.config.get('BACKUP_KEEP', 14),
+        'backup_stale': backup_stale,
+        'backup_dir': backup_dir,
+    }
+
+
 @admin_bp.route('/judge_status', methods=['GET'])
 @admin_required
 def judge_status():
@@ -1292,9 +1508,17 @@ def judge_status():
     queue_size = JudgeTask.query.filter_by(status='Queued').count()
     active_tasks = JudgeTask.query.filter(JudgeTask.status.in_(['Dispatched', 'Running'])).count()
 
+    # 任务列表要展示提交人与题目，必须一次取回，否则每行三次懒加载
+    task_options = (
+        joinedload(JudgeTask.submission).joinedload(Submission.author),
+        joinedload(JudgeTask.submission).joinedload(Submission.problem),
+        joinedload(JudgeTask.submission).defer(Submission.code),
+    )
+
     # 获取活跃任务列表
     active_task_list = (
         JudgeTask.query.filter(JudgeTask.status.in_(['Dispatched', 'Running']))
+        .options(*task_options)
         .order_by(JudgeTask.started_at.desc())
         .limit(10)
         .all()
@@ -1302,12 +1526,17 @@ def judge_status():
 
     # 获取排队任务列表
     queued_task_list = (
-        JudgeTask.query.filter_by(status='Queued').order_by(JudgeTask.created_at).limit(10).all()
+        JudgeTask.query.filter_by(status='Queued')
+        .options(*task_options)
+        .order_by(JudgeTask.created_at)
+        .limit(10)
+        .all()
     )
 
     # 获取最近完成的任务
     recent_tasks = (
         JudgeTask.query.filter_by(status='Completed')
+        .options(*task_options)
         .order_by(JudgeTask.completed_at.desc())
         .limit(10)
         .all()
@@ -1323,4 +1552,5 @@ def judge_status():
         queued_task_list=queued_task_list,
         recent_tasks=recent_tasks,
         judge_observability=observability,
+        service_health=_service_health(),
     )

@@ -7,31 +7,82 @@ lets signed-in users run C++, Java, or Python directly from a problem page.
 Initialization installs a reviewed 30-problem catalog with 10 test points per
 problem.
 
-## Recommended Windows deployment
+## Quick start
 
-Run PowerShell from the project directory:
+Double-click **启动 EasyOJ.bat** in this folder.
+
+The first run installs everything the service needs: a project-local `.venv`, the
+project-local MinGW, JDK, and embedded Python submission runtime, a generated
+`SECRET_KEY`, and the database with its built-in problem bank. It does not modify
+the system `PATH` and does not require globally installed compilers. Expect this
+to take a while on a slow connection; later runs go straight to serving and print
+the classroom address.
+
+A short setup window then asks for the things only you can decide:
+
+| Setting | Notes |
+| --- | --- |
+| Administrator username and password | How you sign in. Choose it yourself so it is never printed or lost. |
+| Site name | Shown in the header and page titles, e.g. a class or school name. |
+| Port | Defaults to 5000; the wizard suggests another if that one is taken. |
+
+Without a desktop session (for example over SSH) the same questions are asked as
+text prompts. Everything is stored in `.env` and can be changed later by editing
+that file.
+
+The service keeps running after the window closes. Double-click
+**停止 EasyOJ.bat** to stop it. Only Python 3.10 or newer needs to be present
+beforehand; the launcher explains how to install it if it is missing.
+
+## Deployment assistant (optional)
+
+For auto-start, backups, and a notification-area icon:
 
 ```powershell
-python -m venv .venv
 .\.venv\Scripts\python.exe scripts\deploy\windows\deploy_gui.py
 ```
 
-Choose **Initialize / repair** in the Tkinter window. It creates the project
-data directories, installs Python packages into `.venv`, and downloads the
-project-local MinGW, JDK, and embedded Python submission runtime. It does not
-modify the system `PATH` or require global compilers. It also initializes the
-database and built-in problem bank.
-
-Start the LAN service with:
-
-```powershell
-.\scripts\deploy\windows\start_easyoj.ps1
-```
+The same setup can be re-run from there with **Initialize / repair**.
 
 Open `http://<host-ip>:5000` from the classroom network. Restrict the Windows
 Firewall rule to the school subnet; do not expose this profile to the public
 Internet. Initialization prints a one-time temporary password for the `admin`
 account; save it securely and change it at first login.
+
+## Running unattended
+
+The deployment window has three controls for day-to-day operation:
+
+- **Start with Windows** adds a Startup-folder shortcut so the service comes up in
+  the background at sign-in. It needs no administrator rights, and the launcher
+  uses `pythonw.exe`, so no console window appears. Press it again to remove.
+- **Minimise to tray** hides the window without stopping the server; closing the
+  window while the server is running does the same. Double-click the
+  notification-area icon to bring it back.
+- **Back up now** writes an immediate database snapshot.
+
+The service also backs itself up: once at start-up (skipped when a backup is less
+than 20 hours old) and then daily, into `data/backups/`, keeping the newest 14.
+Backups use SQLite `VACUUM INTO`, so they are consistent and never require
+stopping the service. Copying `database.db` by hand is *not* equivalent — in WAL
+mode part of the committed state lives in the `-wal` sidecar file.
+
+Equivalent commands, for anyone who prefers the shell:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\deploy\windows\autostart.py status
+.\.venv\Scripts\python.exe scripts\deploy\windows\autostart.py enable
+.\.venv\Scripts\python.exe scripts\deploy\windows\autostart.py disable
+.\.venv\Scripts\python.exe scripts\backup_now.py
+```
+
+Automatic startup can also be registered as a Scheduled Task with
+`autostart.py enable --method scheduled-task`, which brings the service up before
+anyone signs in but must be run from an elevated prompt.
+
+The administrator area reports service health — judging state, uptime, submissions
+awaiting judgement, and the age of the last backup — under **Judge status**.
+Unattended start-up logs to `data/logs/service.log`.
 
 See [docs/WINDOWS_DEPLOYMENT.md](docs/WINDOWS_DEPLOYMENT.md) for backup,
 firewall, sandbox, and recovery details.

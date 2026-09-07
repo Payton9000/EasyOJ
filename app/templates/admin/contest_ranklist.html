@@ -1,7 +1,7 @@
 {% extends "admin/admin_base.html" %}
 {% block admin_content %}
 <h2>{{ contest.title }} - {{ t('contest.ranklist') }}</h2>
-{% if contest.is_sealed %}<div class="flash warning">{{ t('admin.ranklist_sealed') }}</div>{% endif %}
-{% if ranklist %}<table><thead><tr><th>{{ t('admin.rank') }}</th><th>{{ t('admin.users') }}</th><th>{{ t('admin.solved') }}</th><th>{{ t('admin.penalty') }}</th>{% for cp in contest.problem_list %}<th>{{ cp.alias }}</th>{% endfor %}</tr></thead><tbody>{% for item in ranklist %}<tr><td>{{ item.rank }}</td><td>{{ item.user.username }}</td><td>{{ item.solved }}</td><td>{{ item.penalty }}</td>{% for cp in contest.problem_list %}{% set ps = item.problems.get(cp.id, {}) %}<td>{{ ps.status or '-' }}{% if ps.attempts %} ({{ ps.attempts }}){% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody></table>{% else %}<p>{{ t('ranklist.empty') }}</p>{% endif %}
+{% if contest.is_sealed %}<div class="flash warning">{{ t('admin.ranklist_sealed_admin') }}</div>{% endif %}
+{% if ranklist %}<div class="table-wrap"><table><thead><tr><th>{{ t('admin.rank') }}</th><th>{{ t('admin.users') }}</th><th>{{ t('admin.solved') }}</th><th>{{ t('admin.penalty') }}</th>{% for cp in contest.problem_list %}<th>{{ cp.display_alias }}</th>{% endfor %}</tr></thead><tbody>{% for item in ranklist %}<tr><td>{{ item.rank }}</td><td>{{ item.user.username }}</td><td>{{ item.solved }}</td><td>{{ item.penalty }}</td>{% for cp in contest.problem_list %}{% set ps = item.problems.get(cp.id, {}) %}<td>{{ ps.status or '-' }}{% if ps.attempts %} ({{ ps.attempts }}){% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>{% else %}<p>{{ t('ranklist.empty') }}</p>{% endif %}
 <a href="{{ url_for('admin.contests_list') }}" class="btn btn-primary">{{ t('admin.contests') }}</a>
 {% endblock %}

@@ -1,0 +1,15 @@
+# Normalise line endings so a Windows commit does not appear as a whole-file
+# rewrite to anyone working on Linux or macOS.
+* text=auto eol=lf
+
+# Windows-only entry points must keep CRLF: cmd.exe mis-parses LF-only batch files.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Test data is compared byte-for-byte by the judge; never rewrite it.
+data/problems/**/*.in -text
+data/problems/**/*.out -text
+
+# Built editor bundles are generated; keep diffs out of review.
+app/static/vendor/codemirror/** linguist-generated=true -diff

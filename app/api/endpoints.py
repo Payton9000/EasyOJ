@@ -12,10 +12,12 @@ from app.models.problem import Problem
 from app.models.submission import Submission
 from app.services.submission_service import enqueue_submission
 from app.services.submission_service import find_active_contest_problem
+from app.services.submission_service import problem_in_running_contest
 from app.utils.file_utils import ensure_dir
 from app.utils.file_utils import get_submission_dir
 from app.utils.pagination import parse_pagination
 from app.utils.rate_limit import submission_allowed
+from app.utils.security import DangerousCodeError
 from app.utils.security import sanitize_code
 
 
@@ -57,7 +59,10 @@ def api_problems():
         if q:
             query = query.filter(Problem.title.ilike(f'%{q}%'))
 
-        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+        # Deterministic order: unordered pagination can shuffle rows between pages.
+        pagination = query.order_by(Problem.id.asc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
         data = [
             {
                 'id': p.id,
@@ -139,6 +144,15 @@ def api_submit(problem_id):
                     },
                 }
             ), 409
+        # Non-participants must not reach the practice path either: the judge
+        # report would expose expected output for a problem still being contested.
+        if problem_in_running_contest(problem_id):
+            return jsonify(
+                {
+                    'code': 409,
+                    'message': 'This problem is locked while a contest using it is running',
+                }
+            ), 409
 
         data = request.get_json(silent=True)
         if data is None:
@@ -161,8 +175,15 @@ def api_submit(problem_id):
 
         try:
             sanitize_code(code, language)
-        except ValueError as exc:
-            return jsonify({'code': 400, 'message': str(exc)}), 400
+        except DangerousCodeError as exc:
+            return jsonify(
+                {
+                    'code': 400,
+                    'message': f'Code uses a feature that is not allowed here: {exc.feature}',
+                }
+            ), 400
+        except ValueError:
+            return jsonify({'code': 400, 'message': 'Code exceeds 64KB limit'}), 400
 
         if not submission_allowed():
             response = jsonify(

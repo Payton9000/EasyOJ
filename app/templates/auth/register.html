@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ t('auth.register') }} - EasyOJ{% endblock %}
+{% block title %}{{ t('auth.register') }} - {{ config['SITE_NAME'] }}{% endblock %}
 {% block content %}
 <section class="auth-card card">
     <h1 class="page-title">{{ t('auth.register') }}</h1>
@@ -7,12 +7,14 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
             <label for="username">{{ t('auth.username') }}</label>
-            <input type="text" id="username" name="username" minlength="3" maxlength="32" autocomplete="username" required autofocus>
+            <input type="text" id="username" name="username" minlength="3" maxlength="32" autocomplete="username" required autofocus
+                   value="{{ username | default('', true) }}">
             <div class="form-help">{{ t('auth.register.help') }}</div>
         </div>
         <div class="form-group">
             <label for="email">{{ t('auth.email') }}</label>
-            <input type="email" id="email" name="email" maxlength="120" autocomplete="email" required>
+            <input type="email" id="email" name="email" maxlength="120" autocomplete="email" required
+                   value="{{ email | default('', true) }}">
         </div>
         <div class="form-group">
             <label for="password">{{ t('auth.password') }}</label>

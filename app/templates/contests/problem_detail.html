@@ -1,16 +1,12 @@
 {% extends "base.html" %}
-{% block title %}{{ contest_problem.alias }} - {{ problem.title }} - EasyOJ{% endblock %}
-{% block extra_head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='vendor/codemirror/easyoj-editor.css') }}">
-<script src="{{ url_for('static', filename='vendor/codemirror/easyoj-editor.js') }}" defer></script>
-<script src="{{ url_for('static', filename='js/code_workspace.js') }}" defer></script>
-{% endblock %}
+{% block title %}{{ contest_problem.display_alias }} - {{ problem.title }} - {{ config['SITE_NAME'] }}{% endblock %}
+{% block extra_head %}{% include 'problems/_workspace_head.html' %}{% endblock %}
 {% block content %}
-{% set workspace_key = 'contest:' ~ contest.id ~ ':' ~ contest_problem.alias %}
+{% set workspace_key = 'contest:' ~ contest.id ~ ':' ~ contest_problem.display_alias %}
 {% if contest.status == 'Ended' %}
 <main class="page-shell contest-read-only" data-contest-read-only>
     <p class="workspace-kicker">{{ t('workspace.contest') }} · {{ t('contests.ended') }}</p>
-    <h1 class="page-title">{{ contest_problem.alias }}: {{ problem.title }}</h1>
+    <h1 class="page-title">{{ contest_problem.display_alias }}: {{ problem.title }}</h1>
     <div class="problem-meta workspace-meta">
         <span>{{ t('workspace.time_limit') }}: <strong>{{ problem.time_limit }} ms</strong></span>
         <span>{{ t('workspace.memory_limit') }}: <strong>{{ problem.memory_limit }} MB</strong></span>
@@ -31,7 +27,7 @@
     <p><a class="btn btn-primary" href="{{ url_for('web.problem_detail', problem_id=problem.id) }}">{{ t('workspace.practice') }}</a></p>
 </main>
 {% else %}
-{% set submit_action = url_for('web.contest_submit', contest_id=contest.id, alias=contest_problem.alias) %}
+{% set submit_action = url_for('web.contest_submit', contest_id=contest.id, alias=contest_problem.display_alias) %}
 {% set run_url = url_for('api.api_practice_run', problem_id=problem.id) %}
 {% set workspace_context_label = t('workspace.contest') %}
 {% include 'problems/_workspace.html' %}

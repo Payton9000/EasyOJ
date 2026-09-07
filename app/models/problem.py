@@ -5,14 +5,32 @@ from app import db
 
 
 def _get_base_dir():
+    # This module lives in app/models/, so the project root is two levels up. The
+    # previous three-level fallback pointed at the drive root outside app context.
+    fallback = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
     try:
         from flask import current_app
 
-        return current_app.config.get(
-            'BASE_DIR', os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-        )
+        return current_app.config.get('BASE_DIR', fallback)
     except RuntimeError:
-        return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+        return fallback
+
+
+def _testcase_count_cache():
+    """Per-request memo for testcase counts, or None outside an app context."""
+    try:
+        from flask import g
+        from flask import has_app_context
+
+        if not has_app_context():
+            return None
+        cache = getattr(g, '_easyoj_testcase_counts', None)
+        if cache is None:
+            cache = {}
+            g._easyoj_testcase_counts = cache
+        return cache
+    except (RuntimeError, ImportError):
+        return None
 
 
 class Problem(db.Model):
@@ -37,31 +55,28 @@ class Problem(db.Model):
 
     @property
     def test_case_count(self):
-        tc_dir = os.path.join(_get_base_dir(), 'data', 'problems', str(self.id), 'testcases')
+        # Listing a directory per access meant one syscall storm per rendered row
+        # on the admin problem list, so memoise for the life of the request.
+        cache = _testcase_count_cache()
+        if cache is not None and self.id in cache:
+            return cache[self.id]
+
+        from app.utils.file_utils import testcase_dir
+
+        tc_dir = testcase_dir(self.id, base_dir=_get_base_dir())
         if not os.path.isdir(tc_dir):
-            return 0
-        return sum(1 for f in os.listdir(tc_dir) if f.endswith('.in'))
+            count = 0
+        else:
+            count = sum(1 for f in os.listdir(tc_dir) if f.lower().endswith('.in'))
+        if cache is not None:
+            cache[self.id] = count
+        return count
 
     def get_test_cases(self):
-        tc_dir = os.path.join(_get_base_dir(), 'data', 'problems', str(self.id), 'testcases')
-        if not os.path.isdir(tc_dir):
-            return []
-        in_files = [f for f in os.listdir(tc_dir) if f.endswith('.in')]
-        in_files.sort(key=lambda x: int(os.path.splitext(x)[0]))
-        result = []
-        for in_file in in_files:
-            num = os.path.splitext(in_file)[0]
-            out_file = num + '.out'
-            in_path = os.path.join(tc_dir, in_file)
-            out_path = os.path.join(tc_dir, out_file)
-            if not os.path.isfile(out_path):
-                continue
-            with open(in_path, encoding='utf-8') as f:
-                input_str = f.read()
-            with open(out_path, encoding='utf-8') as f:
-                expected_str = f.read()
-            result.append((input_str, expected_str))
-        return result
+        """Decoded (input, expected) pairs, via the shared validated loader."""
+        from app.utils.file_utils import load_test_cases
+
+        return load_test_cases(self.id)
 
     def __repr__(self):
         return f'<Problem {self.id}: {self.title}>'

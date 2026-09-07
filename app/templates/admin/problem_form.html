@@ -1,18 +1,87 @@
 {% extends "admin/admin_base.html" %}
+{#- Field values come from `form` (a rejected submission being echoed back) first,
+    then the stored problem, so a validation error never discards typed input. -#}
+{% macro field(name, stored) %}{{ form[name] if form else (stored if stored is not none else '') }}{% endmacro %}
+{% set cur_difficulty = form.difficulty if form else (problem.difficulty if problem else 'medium') %}
+{% set cur_public = form.is_public if form else (problem.is_public if problem else True) %}
 {% block admin_content %}
 <h2>{{ t('admin.edit') if problem else t('admin.create') }} {{ t('admin.problems') }}</h2>
-<form method="POST" style="background:var(--surface);padding:20px;border-radius:8px;max-width:600px;border:1px solid var(--border);"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<div><label>{{ t('admin.form_title') }} *</label><input type="text" name="title" value="{{ problem.title if problem else '' }}" required style="width:100%;padding:8px;box-sizing:border-box;"></div>
-<div><label>{{ t('admin.form_description') }} *</label><textarea name="description" rows="5" required style="width:100%;box-sizing:border-box;">{{ problem.description if problem else '' }}</textarea></div>
-<div><label>{{ t('admin.form_input') }}</label><textarea name="input_description" rows="3" style="width:100%;box-sizing:border-box;">{{ problem.input_description if problem else '' }}</textarea></div>
-<div><label>{{ t('admin.form_output') }}</label><textarea name="output_description" rows="3" style="width:100%;box-sizing:border-box;">{{ problem.output_description if problem else '' }}</textarea></div>
-<div><label>{{ t('admin.form_sample_input') }}</label><textarea name="sample_input" rows="2" style="width:100%;box-sizing:border-box;">{{ problem.sample_input if problem else '' }}</textarea></div>
-<div><label>{{ t('admin.form_sample_output') }}</label><textarea name="sample_output" rows="2" style="width:100%;box-sizing:border-box;">{{ problem.sample_output if problem else '' }}</textarea></div>
-<div><label>{{ t('admin.form_time_limit') }}</label><input type="number" name="time_limit" value="{{ problem.time_limit if problem else 1000 }}" required></div>
-<div><label>{{ t('admin.form_memory_limit') }}</label><input type="number" name="memory_limit" value="{{ problem.memory_limit if problem else 256 }}" required></div>
-<div><label>{{ t('problems.difficulty') }}</label><select name="difficulty"><option value="easy" {% if problem and problem.difficulty=='easy' %}selected{% endif %}>{{ t('problems.easy') }}</option><option value="medium" {% if problem and problem.difficulty=='medium' %}selected{% endif %}>{{ t('problems.medium') }}</option><option value="hard" {% if problem and problem.difficulty=='hard' %}selected{% endif %}>{{ t('problems.hard') }}</option></select></div>
-<div><label>{{ t('admin.form_source') }}</label><input type="text" name="source" value="{{ problem.source if problem else '' }}"></div>
-<label><input type="checkbox" name="is_public" {% if not problem or problem.is_public %}checked{% endif %}> {{ t('admin.form_public') }}</label>
-<div><button type="submit" class="btn btn-primary">{{ t('admin.save') }}</button><a href="{{ url_for('admin.problems_list') }}" class="btn btn-secondary">{{ t('admin.cancel') }}</a></div></form>
-{% if problem %}<h3>{{ t('admin.upload_testcase') }}</h3><form method="POST" action="{{ url_for('admin.upload_testcase', problem_id=problem.id) }}" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>{{ t('admin.input_file') }}<input type="file" name="input_file" required></label><label>{{ t('admin.output_file') }}<input type="file" name="output_file" required></label><button type="submit" class="btn btn-primary">{{ t('admin.upload') }}</button></form>{% endif %}
+<form method="POST" class="form-card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+        <label for="pf-title">{{ t('admin.form_title') }} <span class="required-mark" aria-hidden="true">*</span></label>
+        <input type="text" id="pf-title" name="title" value="{{ field('title', problem.title if problem else '') }}" required>
+    </div>
+    <div class="form-group">
+        <label for="pf-description">{{ t('admin.form_description') }} <span class="required-mark" aria-hidden="true">*</span></label>
+        <textarea id="pf-description" name="description" rows="16" required aria-describedby="pf-description-help">{{ field('description', problem.description if problem else '') }}</textarea>
+        <p class="form-help" id="pf-description-help">{{ t('admin.statement_plain_text') }}</p>
+    </div>
+    <div class="form-group">
+        <label for="pf-input">{{ t('admin.form_input') }}</label>
+        <textarea id="pf-input" name="input_description" rows="4">{{ field('input_description', problem.input_description if problem else '') }}</textarea>
+    </div>
+    <div class="form-group">
+        <label for="pf-output">{{ t('admin.form_output') }}</label>
+        <textarea id="pf-output" name="output_description" rows="4">{{ field('output_description', problem.output_description if problem else '') }}</textarea>
+    </div>
+    <div class="form-group">
+        <label for="pf-sample-in">{{ t('admin.form_sample_input') }}</label>
+        <textarea id="pf-sample-in" name="sample_input" rows="3">{{ field('sample_input', problem.sample_input if problem else '') }}</textarea>
+    </div>
+    <div class="form-group">
+        <label for="pf-sample-out">{{ t('admin.form_sample_output') }}</label>
+        <textarea id="pf-sample-out" name="sample_output" rows="3">{{ field('sample_output', problem.sample_output if problem else '') }}</textarea>
+    </div>
+    <div class="form-group">
+        <label for="pf-time">{{ t('admin.form_time_limit') }}</label>
+        <input type="number" id="pf-time" name="time_limit" min="100" max="30000" step="10" required
+               value="{{ field('time_limit', problem.time_limit if problem else 1000) }}" aria-describedby="pf-time-help">
+        <p class="form-help" id="pf-time-help">{{ t('admin.time_limit_range', low=100, high=30000) }}</p>
+    </div>
+    <div class="form-group">
+        <label for="pf-memory">{{ t('admin.form_memory_limit') }}</label>
+        <input type="number" id="pf-memory" name="memory_limit" min="16" max="1024" step="1" required
+               value="{{ field('memory_limit', problem.memory_limit if problem else 256) }}" aria-describedby="pf-memory-help">
+        <p class="form-help" id="pf-memory-help">{{ t('admin.memory_limit_range', low=16, high=1024) }}</p>
+    </div>
+    <div class="form-group">
+        <label for="pf-difficulty">{{ t('problems.difficulty') }}</label>
+        <select id="pf-difficulty" name="difficulty">
+            <option value="easy" {% if cur_difficulty == 'easy' %}selected{% endif %}>{{ t('problems.easy') }}</option>
+            <option value="medium" {% if cur_difficulty == 'medium' %}selected{% endif %}>{{ t('problems.medium') }}</option>
+            <option value="hard" {% if cur_difficulty == 'hard' %}selected{% endif %}>{{ t('problems.hard') }}</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="pf-source">{{ t('admin.form_source') }}</label>
+        <input type="text" id="pf-source" name="source" value="{{ field('source', problem.source if problem else '') }}">
+    </div>
+    <div class="form-group">
+        <label class="checkbox-label" for="pf-public"><input type="checkbox" id="pf-public" name="is_public" {% if cur_public %}checked{% endif %}> {{ t('admin.form_public') }}</label>
+        {% if problem and problem.test_case_count == 0 %}<p class="form-help danger-text">{{ t('admin.no_testcase_warning') }}</p>{% endif %}
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ t('admin.save') }}</button>
+        <a href="{{ url_for('admin.problems_list') }}" class="btn btn-secondary">{{ t('admin.cancel') }}</a>
+    </div>
+</form>
+{% if problem %}
+<h3>{{ t('admin.upload_testcase') }}</h3>
+<form method="POST" action="{{ url_for('admin.upload_testcase', problem_id=problem.id) }}" enctype="multipart/form-data" class="form-card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+        <label for="pf-in-file">{{ t('admin.input_file') }}</label>
+        <input type="file" id="pf-in-file" name="input_file" required>
+    </div>
+    <div class="form-group">
+        <label for="pf-out-file">{{ t('admin.output_file') }}</label>
+        <input type="file" id="pf-out-file" name="output_file" required>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ t('admin.upload') }}</button>
+        <a href="{{ url_for('admin.problem_testcases', problem_id=problem.id) }}" class="btn btn-secondary">{{ t('admin.testcases') }} ({{ problem.test_case_count }})</a>
+    </div>
+</form>
+{% endif %}
 {% endblock %}

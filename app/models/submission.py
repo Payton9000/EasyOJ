@@ -10,6 +10,9 @@ class Submission(db.Model):
         db.Index('idx_status', 'status'),
         db.Index('idx_contest_problem_status', 'contest_id', 'problem_id', 'status'),
         db.Index('idx_contest_user_submitted_at', 'contest_id', 'user_id', 'submitted_at'),
+        db.Index('idx_submission_submitted_at', 'submitted_at'),
+        db.Index('idx_submission_user_submitted_at', 'user_id', 'submitted_at'),
+        db.Index('idx_submission_problem', 'problem_id'),
         db.Index(
             'uq_contest_submission_client_token',
             'user_id',

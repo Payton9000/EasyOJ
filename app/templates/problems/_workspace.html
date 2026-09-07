@@ -14,6 +14,10 @@
     data-run-unavailable="{{ t('workspace.run_unavailable') }}"
     data-draft-saved="{{ t('workspace.draft_saved') }}"
     data-draft-cleared="{{ t('workspace.draft_cleared') }}"
+    data-draft-submitted="{{ t('workspace.draft_submitted') }}"
+    data-draft-restored="{{ t('workspace.draft_restored') }}"
+    data-draft-carried="{{ t('workspace.draft_carried') }}"
+    data-confirm-clear-draft="{{ t('workspace.confirm_clear_draft') }}"
     data-ready="{{ t('workspace.ready') }}"
     data-running="{{ t('workspace.running') }}"
     data-submitting="{{ t('workspace.submitting') }}"
@@ -39,7 +43,7 @@
             <div>
                 <p class="workspace-kicker">{{ workspace_context_label or t('workspace.practice') }}</p>
                 <h1 class="page-title">
-                    {% if contest_problem %}{{ contest_problem.alias }}: {% endif %}{{ problem.title }}
+                    {% if contest_problem %}{{ contest_problem.display_alias }}: {% endif %}{{ problem.title }}
                 </h1>
             </div>
         </div>

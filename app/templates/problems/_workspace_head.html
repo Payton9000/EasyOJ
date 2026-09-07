@@ -1,0 +1,6 @@
+{# Shared workspace assets. The editor bundle is an ES module with lazily loaded
+   language chunks, so code_workspace.js must be a module too: classic deferred
+   scripts run before modules and would not see window.EasyOJEditor yet. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/codemirror/easyoj-editor.css') }}">
+<script type="module" src="{{ url_for('static', filename='vendor/codemirror/easyoj-editor.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/code_workspace.js') }}"></script>

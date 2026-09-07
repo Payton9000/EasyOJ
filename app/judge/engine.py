@@ -4,12 +4,15 @@ import multiprocessing
 import os
 import queue
 import threading
+import time
 from datetime import datetime
 from datetime import timedelta
 
 from sqlalchemy.exc import IntegrityError
 
 logger = logging.getLogger(__name__)
+
+HEARTBEAT_MIN_INTERVAL_SECONDS = 0.5
 
 TASK_RECOVERY_MESSAGE = 'Judge task recovered after worker restart.'
 STALE_QUEUE_MESSAGE = 'Judge task remained queued beyond the watchdog limit.'
@@ -30,9 +33,9 @@ class _JudgeExecutionService:
         from app.judge.compiler import Compiler
         from app.judge.executor import Executor
         from app.utils.file_utils import cleanup_dir
-        from app.utils.file_utils import count_test_cases
         from app.utils.file_utils import create_judge_workspace
-        from app.utils.file_utils import iter_test_cases
+        from app.utils.file_utils import iter_testcase_files
+        from app.utils.file_utils import read_test_case
         from app.utils.file_utils import write_code_file
 
         work_dir = None
@@ -46,6 +49,19 @@ class _JudgeExecutionService:
             comparator = Comparator()
             cfg = self.app.config
 
+            # Scan the testcase directory once: a second, independent scan used to
+            # decide `total` while the loop iterated a different snapshot, which
+            # could report AC after running fewer cases than were counted.
+            cases = list(iter_testcase_files(submission.problem_id))
+            total = len(cases)
+            if not total:
+                return {
+                    'status': 'Failed',
+                    'error_message': 'No test cases',
+                    'passed': 0,
+                    'total': 0,
+                }
+
             if submission.language in ('cpp', 'java'):
                 compile_result = compiler.compile(source_path, submission.language, work_dir)
                 if not compile_result['success']:
@@ -55,15 +71,6 @@ class _JudgeExecutionService:
                         'passed': 0,
                         'total': 0,
                     }
-
-            total = count_test_cases(submission.problem_id)
-            if not total:
-                return {
-                    'status': 'Failed',
-                    'error_message': 'No test cases',
-                    'passed': 0,
-                    'total': 0,
-                }
 
             problem = submission.problem
             default_time = cfg.get('JUDGE_TIMEOUT', 30000)
@@ -79,9 +86,9 @@ class _JudgeExecutionService:
             max_time_used = 0
             max_memory_used = 0
             passed = 0
-            for i, (input_data, expected_output) in enumerate(
-                iter_test_cases(submission.problem_id), 1
-            ):
+            last_heartbeat = 0.0
+            for i, case in enumerate(cases, 1):
+                input_data, expected_output = read_test_case(case)
                 exec_result = executor.execute(
                     work_dir, submission.language, input_data, time_limit, memory_limit
                 )
@@ -96,8 +103,14 @@ class _JudgeExecutionService:
                 }
                 case_logs.append(case_log)
 
-                task.last_heartbeat_at = datetime.utcnow()
-                db.session.commit()
+                # Throttle the heartbeat write: one commit per case contends for the
+                # single SQLite writer with every worker and the dispatcher, and the
+                # watchdog timeout is far coarser than a per-case interval.
+                now = time.monotonic()
+                if now - last_heartbeat >= HEARTBEAT_MIN_INTERVAL_SECONDS or i == total:
+                    task.last_heartbeat_at = datetime.utcnow()
+                    db.session.commit()
+                    last_heartbeat = now
 
                 if status != 'OK':
                     self.write_judge_log(submission.id, case_logs, status)
@@ -132,7 +145,7 @@ class _JudgeExecutionService:
                 'status': 'AC',
                 'time_used': max_time_used,
                 'memory_used': max_memory_used,
-                'passed': total,
+                'passed': passed,
                 'total': total,
             }
         except Exception as e:
@@ -158,7 +171,16 @@ class _JudgeExecutionService:
             task.last_heartbeat_at = datetime.utcnow()
             task.completed_at = None
             if submission:
+                # The failed attempt already wrote its metrics onto the submission.
+                # Leaving them behind showed "Queued" alongside a judged-at stamp
+                # and a passed count from the run that just failed.
                 submission.status = 'Queued'
+                submission.time_used = None
+                submission.memory_used = None
+                submission.test_case_passed = 0
+                submission.test_case_total = 0
+                submission.judged_at = None
+                submission.error_message = None
             db.session.commit()
             logger.warning(
                 'Re-queued submission_id=%s (attempt %s)',
@@ -252,10 +274,19 @@ class JudgeEngine:
         )
         self.queued_task_timeout_ms = min(max(1000, configured_queue_timeout), 86400000)
         self.max_retries = app.config.get('JUDGE_TASK_MAX_RETRIES', 2)
-        self.dispatch_interval_seconds = min(
+        # Backoff applies only when the host guard refuses dispatch. Idle polling is
+        # a separate, shorter safety net because new work signals the dispatcher
+        # directly; without the split every submission waited a full backoff period.
+        self.host_backoff_seconds = min(
             max(0.1, int(app.config.get('JUDGE_HOST_BACKOFF_MS', 1000)) / 1000.0),
             10.0,
         )
+        self.dispatch_poll_seconds = min(
+            max(0.05, int(app.config.get('JUDGE_DISPATCH_POLL_MS', 500)) / 1000.0),
+            10.0,
+        )
+        # Retained for callers/tests that inspect the legacy attribute name.
+        self.dispatch_interval_seconds = self.host_backoff_seconds
         self.log_dir = app.config.get('JUDGE_LOG_DIR')
         self.is_running = False
         self.stop_event = self.mp_ctx.Event()
@@ -271,6 +302,9 @@ class JudgeEngine:
         self._state_lock = threading.RLock()
         self._last_worker_restart_at = None
         self._task_reservations = {}
+        # Set by submit_judge_task so a fresh submission does not wait for the
+        # next poll tick before the dispatcher looks at the queue.
+        self._wakeup_event = threading.Event()
 
         if self.log_dir:
             os.makedirs(self.log_dir, exist_ok=True)
@@ -320,6 +354,7 @@ class JudgeEngine:
                 return True
             self.is_running = False
             self.stop_event.set()
+            self._wakeup_event.set()
             for _ in range(max(1, len(self.worker_processes))):
                 try:
                     self.task_queue.put_nowait(None)
@@ -390,10 +425,19 @@ class JudgeEngine:
         active_tasks = JudgeTask.query.filter(
             JudgeTask.status.in_(['Queued', 'Dispatched', 'Running'])
         ).all()
-        active_submission_ids = set()
         now = datetime.utcnow()
+        # Correlated NOT EXISTS instead of a bound-parameter IN list: a large
+        # backlog could exceed SQLite's variable limit and abort startup, which
+        # left the whole engine unable to boot.
+        has_active_task = (
+            JudgeTask.query.filter(
+                JudgeTask.submission_id == Submission.id,
+                JudgeTask.status.in_(['Queued', 'Dispatched', 'Running']),
+            )
+            .exists()
+            .correlate(Submission)
+        )
         for task in active_tasks:
-            active_submission_ids.add(task.submission_id)
             if task.status in ('Dispatched', 'Running'):
                 task.status = 'Queued'
                 task.started_at = None
@@ -406,7 +450,7 @@ class JudgeEngine:
 
         orphaned_queued = Submission.query.filter(
             Submission.status == 'Queued',
-            ~Submission.id.in_(active_submission_ids or {-1}),
+            ~has_active_task,
         ).all()
         for submission in orphaned_queued:
             existing = JudgeTask.query.filter_by(submission_id=submission.id).first()
@@ -429,7 +473,7 @@ class JudgeEngine:
 
         orphaned_judging = Submission.query.filter(
             Submission.status == 'Judging',
-            ~Submission.id.in_(active_submission_ids or {-1}),
+            ~has_active_task,
         ).all()
         for submission in orphaned_judging:
             submission.status = 'Failed'
@@ -507,22 +551,36 @@ class JudgeEngine:
 
                 try:
                     db.session.commit()
-                    return True
                 except IntegrityError:
                     db.session.rollback()
                     return False
 
+                self.notify_new_task()
+                return True
+
     def _dispatcher_loop(self):
         while self.is_running and not self.stop_event.is_set():
+            paused = False
             try:
                 with self.app.app_context():
                     self._reconcile_dead_workers()
                     self._cleanup_stale_tasks()
                     self._ensure_live_workers()
-                    self._dispatch_queued_tasks(limit=5)
+                    self._dispatch_queued_tasks(limit=max(1, self.max_workers))
+                    paused = bool(self.dispatch_pause_reason)
             except Exception as e:
                 logger.error('Dispatcher error: %s', e)
-            self.stop_event.wait(self.dispatch_interval_seconds)
+            # A refused dispatch backs off; otherwise wait on the wakeup signal so a
+            # new submission starts judging immediately instead of after a full tick.
+            self._wakeup_event.clear()
+            wait_seconds = self.host_backoff_seconds if paused else self.dispatch_poll_seconds
+            if self.stop_event.is_set():
+                break
+            self._wakeup_event.wait(wait_seconds)
+
+    def notify_new_task(self):
+        """Wake the dispatcher so queued work is picked up without polling delay."""
+        self._wakeup_event.set()
 
     def _dispatch_queued_tasks(self, limit=5):
         from app import db
@@ -626,9 +684,25 @@ class JudgeEngine:
         from app.models.submission import Submission
 
         now = datetime.utcnow()
-        stale_tasks = JudgeTask.query.filter(
-            JudgeTask.status.in_(['Queued', 'Running', 'Dispatched'])
-        ).all()
+        # Conservative SQL prefilter so the dispatcher no longer loads every active
+        # task each tick. Dynamic Running timeouts are always >= task_timeout_ms, so
+        # nothing excluded here could have been stale.
+        min_timeout_ms = min(self.queued_task_timeout_ms, self.task_timeout_ms)
+        last_seen_column = db.func.coalesce(
+            JudgeTask.last_heartbeat_at,
+            JudgeTask.started_at,
+            JudgeTask.created_at,
+        )
+        stale_tasks = (
+            JudgeTask.query.filter(
+                JudgeTask.status.in_(['Queued', 'Running', 'Dispatched']),
+                last_seen_column.isnot(None),
+                last_seen_column < now - timedelta(milliseconds=min_timeout_ms),
+            )
+            .order_by(JudgeTask.id.asc())
+            .limit(200)
+            .all()
+        )
 
         for task in stale_tasks:
             last_seen = task.last_heartbeat_at or task.started_at or task.created_at

@@ -142,7 +142,12 @@ def test_admin_input_limits_are_normalized(client, app):
         assert problem.difficulty == 'medium'
 
 
-def test_negative_contest_capacity_becomes_unlimited(client, app):
+def test_negative_contest_capacity_is_rejected_and_input_is_preserved(client, app):
+    """An out-of-range cap must be reported, not silently rewritten.
+
+    It used to be clamped to 0 (unlimited) while the page still reported success,
+    so an organiser had no way to notice their value had been replaced.
+    """
     with app.app_context():
         _create_admin('contest_input_admin', 'contest-input@example.com')
 
@@ -158,13 +163,14 @@ def test_negative_contest_capacity_becomes_unlimited(client, app):
             'max_participants': '-10',
         },
     )
-    assert response.status_code == 302
+    assert response.status_code == 200
+    # The rejected form comes back carrying what the organiser typed.
+    assert 'Capacity validation' in response.get_data(as_text=True)
 
     with app.app_context():
         from app.models.contest import Contest
 
-        contest = Contest.query.filter_by(title='Capacity validation').one()
-        assert contest.max_participants == 0
+        assert Contest.query.filter_by(title='Capacity validation').first() is None
 
 
 def test_testcase_upload_with_missing_filenames_is_rejected_cleanly(client, app):

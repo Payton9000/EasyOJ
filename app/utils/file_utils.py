@@ -132,9 +132,14 @@ def _require_regular_file(path):
     return info
 
 
-def _testcase_dir(problem_id, base_dir=None):
+def testcase_dir(problem_id, base_dir=None):
+    """Single source of truth for a problem's testcase directory."""
     root = base_dir or _base_dir()
     return os.path.abspath(os.path.join(root, 'data', 'problems', str(problem_id), 'testcases'))
+
+
+# Retained for existing internal callers.
+_testcase_dir = testcase_dir
 
 
 def validate_testcase_directory(testcase_dir):
@@ -331,17 +336,22 @@ def iter_testcase_files(problem_id):
     yield from _scan_testcase_files(_testcase_dir(problem_id), limits)
 
 
+def read_test_case(case):
+    """Read one already-scanned testcase pair."""
+    try:
+        with open(case.input_path, encoding='utf-8') as input_file:
+            input_data = input_file.read()
+        with open(case.output_path, encoding='utf-8') as output_file:
+            expected_output = output_file.read()
+    except (OSError, UnicodeError) as exc:
+        raise TestcaseDataError(f'cannot read testcase {case.number}') from exc
+    return input_data, expected_output
+
+
 def iter_test_cases(problem_id):
     """Yield one decoded testcase pair at a time, without retaining all cases."""
     for case in iter_testcase_files(problem_id):
-        try:
-            with open(case.input_path, encoding='utf-8') as input_file:
-                input_data = input_file.read()
-            with open(case.output_path, encoding='utf-8') as output_file:
-                expected_output = output_file.read()
-        except (OSError, UnicodeError) as exc:
-            raise TestcaseDataError(f'cannot read testcase {case.number}') from exc
-        yield input_data, expected_output
+        yield read_test_case(case)
 
 
 def load_test_cases(problem_id):

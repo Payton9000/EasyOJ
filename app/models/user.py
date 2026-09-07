@@ -9,6 +9,7 @@ from app import db
 
 class User(UserMixin, db.Model):
     __tablename__ = 'user'
+    __table_args__ = (db.Index('idx_user_role_active', 'role', 'is_active'),)
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     username = db.Column(db.String(80), unique=True, nullable=False)

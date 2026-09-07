@@ -1,3 +1,4 @@
+import hashlib
 import hmac
 import secrets
 from datetime import datetime
@@ -14,6 +15,7 @@ from flask_login import current_user
 from flask_login import login_required
 from sqlalchemy import case
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import defer
 from werkzeug.security import check_password_hash
 from werkzeug.security import generate_password_hash
 
@@ -26,22 +28,44 @@ from app.models.problem import Problem
 from app.models.submission import Submission
 from app.services.submission_service import enqueue_submission
 from app.utils.rate_limit import submission_allowed
+from app.utils.security import DangerousCodeError
 from app.utils.security import sanitize_code
 from app.web import web_bp
 
 
+def _resolve_contest_problem(contest, alias):
+    """Find a contest problem by alias, tolerating legacy rows with no alias.
+
+    ``display_alias`` synthesises a label for rows stored before aliases became
+    mandatory, so links built from it must resolve back to the same row.
+    """
+    wanted = (alias or '').strip().upper()
+    if not wanted:
+        return None
+    exact = ContestProblem.query.filter_by(contest_id=contest.id, alias=wanted).first()
+    if exact:
+        return exact
+    for candidate in ContestProblem.query.filter_by(contest_id=contest.id).all():
+        if candidate.display_alias.upper() == wanted:
+            return candidate
+    return None
+
+
 def _format_remaining(delta):
+    """Coarse 'time left' label; empty string once the contest is over."""
     total_seconds = int(delta.total_seconds())
     if total_seconds < 0:
-        return 'ended'
+        return ''
     days, remainder = divmod(total_seconds, 86400)
     hours, remainder = divmod(remainder, 3600)
-    minutes, _ = divmod(remainder, 60)
+    minutes, seconds = divmod(remainder, 60)
     if days > 0:
         return f'{days}d {hours}h'
     if hours > 0:
         return f'{hours}h {minutes}m'
-    return f'{minutes}m'
+    if minutes > 0:
+        return f'{minutes}m'
+    return f'{seconds}s'
 
 
 def _contest_password_matches(contest, candidate):
@@ -70,6 +94,20 @@ def _submission_client_token():
         token = request.args.get('idempotency_key')
     token = token.strip() if token else ''
     return token or None
+
+
+def _scoped_client_token(token, language, code):
+    """Bind an idempotency token to the exact payload it was issued for.
+
+    The page issues one token per GET, so a student who edits their code and
+    submits again reuses it. Without the payload in the key that genuine second
+    attempt was silently discarded and they were shown the older verdict. Mixing
+    the content in keeps double-clicks deduplicated while letting real edits through.
+    """
+    if not token:
+        return None
+    digest = hashlib.sha256(f'{language}\x00{code}'.encode()).hexdigest()[:24]
+    return f'{token[:96]}:{digest}'
 
 
 @web_bp.route('/contests')
@@ -227,7 +265,33 @@ def contest_register(contest_id):
 
     participant = ContestParticipant(contest_id=contest.id, user_id=current_user.id)
     db.session.add(participant)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        # The unique (contest_id, user_id) key means a concurrent duplicate lost.
+        db.session.rollback()
+        flash(t('flash.already_registered'), 'error')
+        return redirect(url_for('web.contest_detail', contest_id=contest.id))
+
+    # The cap check above is a read, so two concurrent registrations could both
+    # pass it and overshoot max_participants. SQLite has no row locking, so admit
+    # the row first and withdraw it if this request is the one that went over.
+    if contest.max_participants:
+        placed = (
+            db.session.query(db.func.count(ContestParticipant.id))
+            .filter(
+                ContestParticipant.contest_id == contest.id,
+                ContestParticipant.is_disqualified.is_(False),
+                ContestParticipant.id <= participant.id,
+            )
+            .scalar()
+            or 0
+        )
+        if placed > contest.max_participants:
+            db.session.delete(participant)
+            db.session.commit()
+            flash(t('flash.registration_closed'), 'error')
+            return redirect(url_for('web.contest_detail', contest_id=contest.id))
 
     flash(t('flash.registration_success_short'), 'success')
     return redirect(url_for('web.contest_detail', contest_id=contest.id))
@@ -248,10 +312,7 @@ def contest_problem_detail(contest_id, alias):
         flash(t('flash.contest_not_started'), 'error')
         return redirect(url_for('web.contest_detail', contest_id=contest.id))
 
-    cp = ContestProblem.query.filter_by(
-        contest_id=contest.id,
-        alias=alias.upper(),
-    ).first()
+    cp = _resolve_contest_problem(contest, alias)
     if not cp:
         abort(404)
     problem = Problem.query.get_or_404(cp.problem_id)
@@ -284,10 +345,7 @@ def contest_submit(contest_id, alias):
         flash(t('flash.contest_not_running'), 'error')
         return redirect(url_for('web.contest_detail', contest_id=contest.id))
 
-    cp = ContestProblem.query.filter_by(
-        contest_id=contest.id,
-        alias=alias.upper(),
-    ).first()
+    cp = _resolve_contest_problem(contest, alias)
     if not cp:
         abort(404)
 
@@ -306,14 +364,18 @@ def contest_submit(contest_id, alias):
 
     try:
         sanitize_code(code, language)
-    except ValueError as e:
-        flash(str(e), 'error')
+    except DangerousCodeError as exc:
+        flash(t('flash.code_feature_blocked', feature=exc.feature), 'error')
         return redirect(url_for('web.contest_problem_detail', contest_id=contest.id, alias=alias))
-
-    client_token = _submission_client_token()
-    if client_token and len(client_token) > 128:
+    except ValueError:
         flash(t('flash.code_limit'), 'error')
         return redirect(url_for('web.contest_problem_detail', contest_id=contest.id, alias=alias))
+
+    raw_token = _submission_client_token()
+    if raw_token and len(raw_token) > 512:
+        flash(t('flash.invalid_request'), 'error')
+        return redirect(url_for('web.contest_problem_detail', contest_id=contest.id, alias=alias))
+    client_token = _scoped_client_token(raw_token, language, code)
 
     if client_token:
         existing = Submission.query.filter_by(
@@ -323,7 +385,10 @@ def contest_submit(contest_id, alias):
             client_token=client_token,
         ).first()
         if existing:
-            return redirect(url_for('web.contest_submissions', contest_id=contest.id))
+            # Same token AND same code: a double submit, not a new attempt. Say so
+            # instead of silently showing the previous verdict.
+            flash(t('flash.duplicate_submission'), 'warning')
+            return redirect(url_for('web.submission_detail', submission_id=existing.id))
 
     if not submission_allowed():
         flash(t('flash.too_many_submissions'), 'error')
@@ -352,7 +417,8 @@ def contest_submit(contest_id, alias):
                 client_token=client_token,
             ).first()
             if existing:
-                return redirect(url_for('web.contest_submissions', contest_id=contest.id))
+                flash(t('flash.duplicate_submission'), 'warning')
+                return redirect(url_for('web.submission_detail', submission_id=existing.id))
         raise
 
     if enqueue_submission(submission):
@@ -360,7 +426,9 @@ def contest_submit(contest_id, alias):
     else:
         flash(t('flash.judge_unavailable'), 'error')
 
-    return redirect(url_for('web.contest_submissions', contest_id=contest.id))
+    # Same destination as a practice submission: the detail page tracks judging
+    # live, whereas the contest list needed a manual refresh to show a verdict.
+    return redirect(url_for('web.submission_detail', submission_id=submission.id))
 
 
 @web_bp.route('/contest/<int:contest_id>/submissions')
@@ -375,13 +443,18 @@ def contest_submissions(contest_id):
         abort(403)
 
     page = request.args.get('page', 1, type=int)
-    query = Submission.query.filter_by(
-        contest_id=contest.id,
-        user_id=current_user.id,
-    ).order_by(Submission.submitted_at.desc())
+    # Source is not rendered here, and code can be 64 KB per row.
+    query = (
+        Submission.query.filter_by(
+            contest_id=contest.id,
+            user_id=current_user.id,
+        )
+        .options(defer(Submission.code))
+        .order_by(Submission.submitted_at.desc())
+    )
     paginated = query.paginate(page=page, per_page=20, error_out=False)
 
-    alias_map = {cp.problem_id: cp.alias for cp in contest.problem_list}
+    alias_map = {cp.problem_id: cp.display_alias for cp in contest.problem_list}
 
     return render_template(
         'contests/submissions.html',

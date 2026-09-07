@@ -1,14 +1,59 @@
 {% extends "admin/admin_base.html" %}
+{#- Prefer `form` (a rejected submission echoed back) over the stored contest so a
+    validation error never discards what the teacher typed. -#}
+{% set cur_public = form.is_public if form else (contest.is_public if contest else True) %}
+{% set cur_sealed = form.is_sealed if form else (contest.is_sealed if contest else False) %}
 {% block admin_content %}
 <h2>{{ t('admin.edit') if contest else t('admin.create') }} {{ t('admin.contests') }}</h2>
-<form method="POST" style="background:var(--surface);padding:20px;border-radius:8px;max-width:600px;border:1px solid var(--border);"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<label>{{ t('contests.title_label') }} *<input type="text" name="title" value="{{ contest.title if contest else '' }}" required></label>
-<label>{{ t('admin.form_description') }}<textarea name="description" rows="4">{{ contest.description if contest else '' }}</textarea></label>
-<label>{{ t('contests.start') }} *<input type="datetime-local" name="start_time" value="{% if contest %}{{ contest.start_time | local_datetime_input }}{% endif %}" required></label>
-<label>{{ t('contests.end') }} *<input type="datetime-local" name="end_time" value="{% if contest %}{{ contest.end_time | local_datetime_input }}{% endif %}" required></label>
-<label>{{ t('contests.participants') }}<input type="number" name="max_participants" min="0" value="{{ contest.max_participants if contest else 0 }}" placeholder="0 = {{ t('admin.unlimited') }}"></label>
-<label>{{ t('auth.password') }}<input type="password" name="password" value="" autocomplete="new-password" placeholder="{{ t('contest.password_placeholder') }}"></label>
-<label><input type="checkbox" name="is_public" {% if not contest or contest.is_public %}checked{% endif %}> {{ t('admin.form_public') }}</label>
-<label><input type="checkbox" name="is_sealed" {% if contest and contest.is_sealed %}checked{% endif %}> {{ t('admin.ranklist_sealed') }}</label>
-<button type="submit" class="btn btn-primary">{{ t('admin.save') }}</button> <a href="{{ url_for('admin.contests_list') }}" class="btn btn-secondary">{{ t('admin.cancel') }}</a></form>
+<form method="POST" class="form-card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+        <label for="cf-title">{{ t('contests.title_label') }} <span class="required-mark" aria-hidden="true">*</span></label>
+        <input type="text" id="cf-title" name="title" required
+               value="{{ form.title if form else (contest.title if contest else '') }}">
+    </div>
+    <div class="form-group">
+        <label for="cf-description">{{ t('admin.form_description') }}</label>
+        <textarea id="cf-description" name="description" rows="5">{{ form.description if form else (contest.description if contest else '') }}</textarea>
+    </div>
+    <div class="form-group">
+        <label for="cf-start">{{ t('contests.start') }} <span class="required-mark" aria-hidden="true">*</span></label>
+        <input type="datetime-local" id="cf-start" name="start_time" required
+               {% if contest and contest.status in ('Running', 'Ended') %}readonly aria-describedby="cf-start-help"{% endif %}
+               value="{{ form.start_time_raw if form else (contest.start_time | local_datetime_input if contest else '') }}">
+        {% if contest and contest.status in ('Running', 'Ended') %}<p class="form-help" id="cf-start-help">{{ t('admin.start_started') }}</p>{% endif %}
+    </div>
+    <div class="form-group">
+        <label for="cf-end">{{ t('contests.end') }} <span class="required-mark" aria-hidden="true">*</span></label>
+        <input type="datetime-local" id="cf-end" name="end_time" required
+               value="{{ form.end_time_raw if form else (contest.end_time | local_datetime_input if contest else '') }}">
+    </div>
+    <div class="form-group">
+        <label for="cf-max">{{ t('admin.form_max_participants') }}</label>
+        <input type="number" id="cf-max" name="max_participants" min="0" max="100000" aria-describedby="cf-max-help"
+               value="{{ form.max_participants if form else (contest.max_participants if contest else 0) }}">
+        <p class="form-help" id="cf-max-help">{{ t('admin.participants_range', low=0, high=100000) }}</p>
+    </div>
+    <div class="form-group">
+        <label for="cf-password">{{ t('auth.password') }}</label>
+        <input type="password" id="cf-password" name="password" value="" autocomplete="new-password"
+               aria-describedby="cf-password-help" placeholder="{{ t('contest.password_placeholder') }}">
+        <p class="form-help" id="cf-password-help">
+            {% if contest %}{{ t('admin.password_is_set') if contest.password else t('admin.password_not_set') }} {{ t('admin.password_keep_blank') }}{% else %}{{ t('contest.password_placeholder') }}{% endif %}
+        </p>
+        {% if contest and contest.password %}
+        <label class="checkbox-label" for="cf-clear-password"><input type="checkbox" id="cf-clear-password" name="clear_password"> {{ t('admin.clear_password') }}</label>
+        {% endif %}
+    </div>
+    <div class="form-group">
+        <label class="checkbox-label" for="cf-public"><input type="checkbox" id="cf-public" name="is_public" {% if cur_public %}checked{% endif %}> {{ t('admin.form_public') }}</label>
+    </div>
+    <div class="form-group">
+        <label class="checkbox-label" for="cf-sealed"><input type="checkbox" id="cf-sealed" name="is_sealed" {% if cur_sealed %}checked{% endif %}> {{ t('admin.form_sealed') }}</label>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">{{ t('admin.save') }}</button>
+        <a href="{{ url_for('admin.contests_list') }}" class="btn btn-secondary">{{ t('admin.cancel') }}</a>
+    </div>
+</form>
 {% endblock %}

@@ -1,8 +1,6 @@
 {% extends "base.html" %}
-{% block title %}{{ t('submission.number', number=submission.id) }} - EasyOJ{% endblock %}
-{% if submission.status in ('Pending', 'Queued', 'Judging') %}
-{% block extra_head %}<meta http-equiv="refresh" content="3">{% endblock %}
-{% endif %}
+{% block title %}{{ t('submission.number', number=submission.id) }} - {{ config['SITE_NAME'] }}{% endblock %}
+{% block extra_head %}{% if submission.status in ('Pending', 'Queued', 'Judging') %}<meta http-equiv="refresh" content="3">{% endif %}{% endblock %}
 {% block content %}
 <article class="card">
     <div class="page-heading"><h1 class="page-title">{{ t('submission.number', number=submission.id) }}</h1><span class="status-{{ submission.status }}" data-status="{{ submission.status }}">{{ t('submission.status.' ~ submission.status) }}</span></div>
@@ -12,7 +10,7 @@
             <tr><th>{{ t('submissions.language') }}</th><td>{{ submission.language }}</td></tr>
             <tr><th>{{ t('submissions.status') }}</th><td><span class="status-{{ submission.status }}" data-status="{{ submission.status }}">{{ t('submission.status.' ~ submission.status) }}</span></td></tr>
             <tr><th>{{ t('submissions.time') }}</th><td>{{ submission.time_used ~ ' ms' if submission.time_used is not none else '-' }}</td></tr>
-            <tr><th>{{ t('submissions.memory') }}</th><td>{{ (submission.memory_used // 1024) ~ ' MB' if submission.memory_used else '-' }}</td></tr>
+            <tr><th>{{ t('submissions.memory') }}</th><td>{{ submission.memory_used | memory_size }}</td></tr>
             <tr><th>{{ t('submissions.test_cases') }}</th><td>{{ submission.test_case_passed }} / {{ submission.test_case_total }}</td></tr>
             <tr><th>{{ t('submissions.submitted_at') }}</th><td>{{ (submission.submitted_at | local_datetime('%Y-%m-%d %H:%M:%S')) if submission.submitted_at else '-' }}</td></tr>
             <tr><th>{{ t('submissions.judged_at') }}</th><td>{{ (submission.judged_at | local_datetime('%Y-%m-%d %H:%M:%S')) if submission.judged_at else '-' }}</td></tr>

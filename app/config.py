@@ -103,6 +103,11 @@ class Config:
         max(100, _safe_int(os.environ.get('JUDGE_HOST_BACKOFF_MS'), 1000)),
         10000,
     )
+    # Idle safety-net poll only; new submissions signal the dispatcher directly.
+    JUDGE_DISPATCH_POLL_MS = min(
+        max(50, _safe_int(os.environ.get('JUDGE_DISPATCH_POLL_MS'), 500)),
+        10000,
+    )
     PRACTICE_RUN_TIMEOUT_MS = min(
         max(100, _safe_int(os.environ.get('PRACTICE_RUN_TIMEOUT_MS'), 5000)),
         20000,
@@ -122,11 +127,20 @@ class Config:
     )
     JUDGE_REQUIRE_SANDBOX = os.environ.get('JUDGE_REQUIRE_SANDBOX', '1') != '0'
     JUDGE_LOG_DIR = os.path.join(BASE_DIR, 'data', 'judge_logs')
+    # Shown in the header and page titles; chosen in the first-run wizard so a
+    # school can label its own instance.
+    SITE_NAME = (os.environ.get('EASYOJ_SITE_NAME') or 'EasyOJ').strip()[:60] or 'EasyOJ'
 
-    MAX_CONTENT_LENGTH = min(
-        max(64 * 1024, _safe_int(os.environ.get('MAX_CONTENT_LENGTH'), 256 * 1024)),
-        8 * 1024 * 1024,
+    # Hot database backups. A classroom host rarely has an external scheduler, so
+    # the service backs itself up: once at start-up, then once per interval.
+    BACKUP_ENABLED = os.environ.get('BACKUP_ENABLED', '1') != '0'
+    BACKUP_DIR = os.path.join(BASE_DIR, 'data', 'backups')
+    BACKUP_KEEP = min(max(1, _safe_int(os.environ.get('BACKUP_KEEP'), 14)), 365)
+    BACKUP_INTERVAL_SECONDS = min(
+        max(600, _safe_int(os.environ.get('BACKUP_INTERVAL_SECONDS'), 24 * 3600)),
+        30 * 24 * 3600,
     )
+
     # Test data is administrator-controlled, but still needs hard bounds on a
     # daily-use classroom machine.  Values can be lowered through .env.
     TESTCASE_MAX_INPUT_BYTES = min(
@@ -136,6 +150,20 @@ class Config:
     TESTCASE_MAX_OUTPUT_BYTES = min(
         max(1, _safe_int(os.environ.get('TESTCASE_MAX_OUTPUT_BYTES'), 4 * 1024 * 1024)),
         64 * 1024 * 1024,
+    )
+    # A testcase upload posts one .in/.out pair, so the request cap has to clear
+    # both limits plus multipart framing. It used to default to 256 KB, which
+    # rejected any upload the testcase limits actually allowed: Flask aborts with
+    # 413 before the view runs, so the 4 MB limits were unreachable and the
+    # chunked-write path could never be exercised.
+    _UPLOAD_ENVELOPE_BYTES = TESTCASE_MAX_INPUT_BYTES + TESTCASE_MAX_OUTPUT_BYTES + 64 * 1024
+    MAX_CONTENT_LENGTH = min(
+        max(
+            64 * 1024,
+            _safe_int(os.environ.get('MAX_CONTENT_LENGTH'), _UPLOAD_ENVELOPE_BYTES),
+            _UPLOAD_ENVELOPE_BYTES,
+        ),
+        256 * 1024 * 1024,
     )
     TESTCASE_MAX_COUNT = min(
         max(1, _safe_int(os.environ.get('TESTCASE_MAX_COUNT'), 2000)),
@@ -214,8 +242,6 @@ class Config:
     SUPPORTED_LANGUAGES = {
         'cpp': {
             'name': 'C++',
-            'compile_cmd': '{compiler} {source} -o {output} -O2 -std=c++17',
-            'run_cmd': '{executable}',
             'file_ext': '.cpp',
             'source_file': 'main.cpp',
             'compiler_key': 'g++',
@@ -225,8 +251,6 @@ class Config:
         },
         'java': {
             'name': 'Java',
-            'compile_cmd': '{compiler} {source}',
-            'run_cmd': 'java -cp {classpath} Main',
             'file_ext': '.java',
             'source_file': 'Main.java',
             'compiler_key': 'javac',
@@ -236,8 +260,6 @@ class Config:
         },
         'python': {
             'name': 'Python',
-            'compile_cmd': None,
-            'run_cmd': '{interpreter} {source}',
             'file_ext': '.py',
             'source_file': 'main.py',
             'interpreter_key': 'python',
@@ -286,11 +308,15 @@ class TestingConfig(Config):
     SANDBOX_STRICT_APP_CONTAINER = False
     JUDGE_HOST_MAX_CPU_PERCENT = 100
     JUDGE_HOST_MIN_AVAILABLE_MEMORY_MB = 1
+    # Tests must not spawn a background backup thread or write backup files.
+    BACKUP_ENABLED = False
 
 
 config = {
     'development': DevelopmentConfig,
     'production': ProductionConfig,
     'testing': TestingConfig,
-    'default': DevelopmentConfig,
+    # 'default' points at production so an unnamed configuration can never hand
+    # out DEBUG=True. Development has to be asked for by name.
+    'default': ProductionConfig,
 }

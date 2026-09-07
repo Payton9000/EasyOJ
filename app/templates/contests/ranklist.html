@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ contest.title }} ranklist - EasyOJ{% endblock %}
+{% block title %}{{ contest.title }} ranklist - {{ config['SITE_NAME'] }}{% endblock %}
 {% block content %}
 <section class="card">
     <div class="page-heading"><h1 class="page-title">{{ contest.title }} | {{ t('contest.ranklist') }}</h1></div>
@@ -8,7 +8,7 @@
     {% elif ranklist %}
     <div class="table-wrap">
         <table>
-            <thead><tr><th>{{ t('ranklist.rank') }}</th><th>{{ t('ranklist.user') }}</th><th>{{ t('ranklist.solved') }}</th><th>{{ t('ranklist.penalty') }}</th>{% for cp in contest.problem_list %}<th title="{{ cp.problem.title }}">{{ cp.alias or 'Q' ~ loop.index }}</th>{% endfor %}</tr></thead>
+            <thead><tr><th>{{ t('ranklist.rank') }}</th><th>{{ t('ranklist.user') }}</th><th>{{ t('ranklist.solved') }}</th><th>{{ t('ranklist.penalty') }}</th>{% for cp in contest.problem_list %}<th title="{{ cp.problem.title }}">{{ cp.display_alias }}</th>{% endfor %}</tr></thead>
             <tbody>
             {% for item in ranklist %}
                 <tr>

@@ -8,6 +8,7 @@ from app import db
 
 class Contest(db.Model):
     __tablename__ = 'contest'
+    __table_args__ = (db.Index('idx_contest_start_time', 'start_time'),)
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     title = db.Column(db.String(200), nullable=False)
@@ -46,12 +47,6 @@ class Contest(db.Model):
             return 'Ended'
 
     @property
-    def duration(self):
-        """返回比赛时长（小时）"""
-        delta = self.end_time - self.start_time
-        return delta.total_seconds() / 3600
-
-    @property
     def participant_count(self):
         """返回参赛人数（不含被取消资格的）"""
         return (
@@ -65,11 +60,6 @@ class Contest(db.Model):
         )
 
     @property
-    def is_ongoing(self):
-        """返回当前是否正在比赛"""
-        return self.status == 'Running'
-
-    @property
     def is_registration_open(self):
         """判断是否可以报名"""
         now = datetime.utcnow()
@@ -78,11 +68,6 @@ class Contest(db.Model):
         if self.max_participants == 0:
             return True
         return self.participant_count < self.max_participants
-
-    @property
-    def can_submit(self):
-        """判断当前是否允许提交"""
-        return self.is_ongoing
 
     @property
     def problem_list(self):

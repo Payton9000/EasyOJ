@@ -4,6 +4,7 @@ from datetime import datetime
 from datetime import timedelta
 
 from flask import current_app
+from flask import g
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
@@ -55,8 +56,19 @@ class AccountService:
             raise ValueError('Username or email is already registered.') from exc
         return user
 
+    @staticmethod
+    def _record_failure_reason(key):
+        """Remember why a sign-in failed so the view can explain it accurately."""
+        g._easyoj_login_failure = key
+
+    @staticmethod
+    def last_failure_message_key():
+        """i18n key describing the most recent sign-in failure in this request."""
+        return getattr(g, '_easyoj_login_failure', 'flash.invalid_credentials')
+
     @classmethod
     def authenticate(cls, username, password):
+        cls._record_failure_reason('flash.invalid_credentials')
         try:
             normalized_username = validate_username(username)
         except ValueError:
@@ -64,17 +76,24 @@ class AccountService:
 
         limiter = cls._limiter()
         if not limiter.allow(normalized_username):
+            # Telling a student "wrong password" while the account is rate-limited
+            # makes them keep trying (extending the lock) and ask for a reset.
+            cls._record_failure_reason('flash.login_locked')
             return None
 
         user = User.query.filter(func.lower(User.username) == normalized_username).first()
         now = datetime.utcnow()
         if user and user.locked_until and user.locked_until > now:
+            cls._record_failure_reason('flash.login_locked')
             return None
 
         if user and user.locked_until and user.locked_until <= now:
             user.failed_login_count = max(0, (user.failed_login_count or 0) - 1)
             user.locked_until = None
             db.session.commit()
+
+        if user and not user.is_active:
+            cls._record_failure_reason('flash.account_disabled')
 
         valid = bool(user and user.is_active and user.check_password(password or ''))
         if valid:

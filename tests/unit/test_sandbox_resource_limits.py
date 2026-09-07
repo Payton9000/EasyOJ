@@ -98,10 +98,54 @@ def test_memory_monitor_kills_when_child_process_count_exceeds_limit(monkeypatch
     assert events == ['limit']
 
 
-def test_assignment_failure_terminates_and_fails_closed(monkeypatch):
+def test_unadmitted_process_is_killed_and_fails_closed(monkeypatch):
+    """A process outside its Job Object has no limits and must never run.
+
+    Membership is requested at creation via PROC_THREAD_ATTRIBUTE_JOB_LIST. If that
+    silently did not take effect the submission would run with no memory ceiling,
+    no CPU ceiling and no kill-on-close, and TerminateJobObject would not reach it.
+    """
+
     class _JobApi:
-        def AssignProcessToJobObject(self, _job, _process):
-            raise RuntimeError('assignment denied')
+        def IsProcessInJob(self, _process, _job):
+            return False
+
+    terminated = []
+    trees = []
+    monkeypatch.setattr(sandbox, 'win32job', _JobApi(), raising=False)
+    monkeypatch.setattr(
+        sandbox,
+        '_terminate_sandbox_process',
+        lambda job, process, pid=None: terminated.append((job, process, pid)),
+    )
+    monkeypatch.setattr(sandbox, '_terminate_process_tree', lambda pid: trees.append(pid))
+
+    with pytest.raises(sandbox.SandboxError, match='not admitted to its Job Object'):
+        sandbox._verify_process_in_job('job', 'process', pid=42)
+
+    assert terminated == [('job', 'process', 42)]
+    assert trees == [42]
+
+
+def test_admitted_process_passes_verification(monkeypatch):
+    class _JobApi:
+        def IsProcessInJob(self, _process, _job):
+            return True
+
+    monkeypatch.setattr(sandbox, 'win32job', _JobApi(), raising=False)
+    monkeypatch.setattr(
+        sandbox,
+        '_terminate_sandbox_process',
+        lambda *args, **kwargs: pytest.fail('an admitted process must not be terminated'),
+    )
+
+    sandbox._verify_process_in_job('job', 'process', pid=42)
+
+
+def test_failed_membership_query_fails_closed(monkeypatch):
+    class _JobApi:
+        def IsProcessInJob(self, _process, _job):
+            raise OSError('query denied')
 
     terminated = []
     monkeypatch.setattr(sandbox, 'win32job', _JobApi(), raising=False)
@@ -110,21 +154,12 @@ def test_assignment_failure_terminates_and_fails_closed(monkeypatch):
         '_terminate_sandbox_process',
         lambda job, process, pid=None: terminated.append((job, process, pid)),
     )
+    monkeypatch.setattr(sandbox, '_terminate_process_tree', lambda pid: None)
 
-    with pytest.raises(sandbox.SandboxError, match='AssignProcessToJobObject'):
-        sandbox._assign_process_to_job_object('job', 'process', pid=42)
+    with pytest.raises(sandbox.SandboxError, match='IsProcessInJob check failed'):
+        sandbox._verify_process_in_job('job', 'process', pid=7)
 
-    assert terminated == [('job', 'process', 42)]
-
-
-def test_job_list_spawn_does_not_repeat_assignment(monkeypatch):
-    class _JobApi:
-        def AssignProcessToJobObject(self, _job, _process):
-            raise AssertionError('a process created with JOB_LIST must not be reassigned')
-
-    monkeypatch.setattr(sandbox, 'win32job', _JobApi(), raising=False)
-
-    sandbox._assign_process_to_job_object('job', 'process', assigned_at_creation=True)
+    assert terminated == [('job', 'process', 7)]
 
 
 def test_process_tree_cleanup_kills_descendants_before_root(monkeypatch):

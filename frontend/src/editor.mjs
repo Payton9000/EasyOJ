@@ -14,9 +14,6 @@ import {
     indentLess,
     indentMore,
 } from '@codemirror/commands';
-import { cpp } from '@codemirror/lang-cpp';
-import { java } from '@codemirror/lang-java';
-import { python } from '@codemirror/lang-python';
 import {
     bracketMatching,
     defaultHighlightStyle,
@@ -43,14 +40,33 @@ import {
 
 import { getCompletionOptions } from './completions.mjs';
 
-const languageSupport = Object.freeze({
-    cpp: cpp(),
-    java: java(),
-    python: python(),
+// Each grammar carries its own parse tables. Importing all three eagerly meant a
+// student downloaded every language to use one, so they load on demand and the
+// editor mounts immediately with plain-text highlighting.
+const languageLoaders = Object.freeze({
+    cpp: () => import('@codemirror/lang-cpp').then((module) => module.cpp()),
+    java: () => import('@codemirror/lang-java').then((module) => module.java()),
+    python: () => import('@codemirror/lang-python').then((module) => module.python()),
 });
 
+const loadedLanguages = new Map();
+
 function normalizeLanguage(language) {
-    return Object.hasOwn(languageSupport, language) ? language : 'cpp';
+    return Object.hasOwn(languageLoaders, language) ? language : 'cpp';
+}
+
+function loadLanguage(language) {
+    const key = normalizeLanguage(language);
+    if (!loadedLanguages.has(key)) {
+        loadedLanguages.set(
+            key,
+            languageLoaders[key]().catch((error) => {
+                loadedLanguages.delete(key);
+                throw error;
+            })
+        );
+    }
+    return loadedLanguages.get(key);
 }
 
 function editorCompletions(language) {
@@ -145,7 +161,7 @@ export function mount(textarea, options = {}) {
             highlightActiveLine(),
             highlightSelectionMatches(),
             EditorView.contentAttributes.of(contentAttributes),
-            languageCompartment.of(languageSupport[currentLanguage]),
+            languageCompartment.of([]),
             keymap.of([
                 { key: 'Mod-Enter', run: shortcut(options.onRun) },
                 { key: 'Mod-Shift-Enter', run: shortcut(options.onSubmit) },
@@ -183,6 +199,23 @@ export function mount(textarea, options = {}) {
     textarea.dataset.enhancedEditor = 'true';
     textarea.parentElement.classList.add('is-enhanced');
 
+    let destroyed = false;
+    const applyLanguage = (language) => {
+        const target = normalizeLanguage(language);
+        return loadLanguage(target)
+            .then((support) => {
+                // Ignore a slow load whose language is no longer selected.
+                if (destroyed || target !== currentLanguage) {
+                    return;
+                }
+                view.dispatch({ effects: languageCompartment.reconfigure(support) });
+            })
+            .catch(() => {
+                // Highlighting is an enhancement; editing must keep working.
+            });
+    };
+    applyLanguage(currentLanguage);
+
     return Object.freeze({
         isEnhanced: true,
         getValue() {
@@ -215,9 +248,10 @@ export function mount(textarea, options = {}) {
                 return;
             }
             currentLanguage = next;
-            view.dispatch({ effects: languageCompartment.reconfigure(languageSupport[next]) });
+            applyLanguage(next);
         },
         destroy() {
+            destroyed = true;
             view.destroy();
             listeners.clear();
             host.remove();

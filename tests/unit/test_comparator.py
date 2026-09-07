@@ -8,7 +8,9 @@ def test_compare_normalizes_whitespace():
     assert comp.compare('1 2\n4', '1 2\n3') is False
 
 
-def test_compare_float_precision():
+def test_compare_normalizes_line_endings_and_trailing_spaces():
     comp = Comparator()
-    assert comp.compare_float('1.000001', '1.000002', precision=5) is True
-    assert comp.compare_float('1.0001', '1.0002', precision=5) is False
+    assert comp.compare('1 2\r\n3\r\n', '1 2\n3\n') is True
+    assert comp.compare('1 2   \n3', '1 2\n3') is True
+    # Leading whitespace inside the output is still significant.
+    assert comp.compare('1 2\n   3', '1 2\n3') is False

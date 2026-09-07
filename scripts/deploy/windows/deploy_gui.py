@@ -16,13 +16,17 @@ from collections.abc import Iterable
 from pathlib import Path
 
 try:
+    from . import autostart
     from .deploy_core import ensure_project_layout
     from .deploy_core import generate_env_file
     from .deploy_core import resolve_project_root
+    from .tray_icon import TrayIcon
 except ImportError:  # Executed directly by the Windows launcher.
+    import autostart
     from deploy_core import ensure_project_layout
     from deploy_core import generate_env_file
     from deploy_core import resolve_project_root
+    from tray_icon import TrayIcon
 
 
 class DeploymentError(RuntimeError):
@@ -253,6 +257,43 @@ def run_server(root: Path, log: Callable[[str], None]) -> None:
     )
 
 
+def run_backup(root: Path, log: Callable[[str], None]) -> None:
+    """Write a hot database backup without stopping the running service."""
+    root = resolve_project_root(root)
+    python_path = root / '.venv' / 'Scripts' / 'python.exe'
+    if not python_path.is_file():
+        raise DeploymentError('Project Python is missing. Run Initialize first.')
+    script = root / 'scripts' / 'backup_now.py'
+    if not script.is_file():
+        raise DeploymentError(f'Missing backup script: {script}')
+    run_step(
+        [str(python_path), str(script)],
+        cwd=root,
+        log=log,
+        timeout_seconds=600,
+    )
+
+
+def enable_autostart(root: Path, log: Callable[[str], None]) -> None:
+    """Start EasyOJ automatically at sign-in, without needing administrator rights."""
+    root = resolve_project_root(root)
+    try:
+        result = autostart.install_shortcut(root)
+    except RuntimeError as exc:
+        raise DeploymentError(str(exc)) from exc
+    log(f'Automatic startup enabled ({result.method}).')
+    log(f'Shortcut: {result.location}')
+    log('EasyOJ will start in the background the next time you sign in.')
+
+
+def disable_autostart(root: Path, log: Callable[[str], None]) -> None:
+    removed = autostart.disable(resolve_project_root(root))
+    if removed:
+        log(f'Automatic startup removed ({", ".join(removed)}).')
+    else:
+        log('Automatic startup was not enabled.')
+
+
 def create_app(root: Path) -> None:
     import tkinter as tk
     from tkinter import scrolledtext
@@ -272,7 +313,23 @@ def create_app(root: Path) -> None:
         text=f'Project folder: {root}',
         anchor='w',
         justify='left',
-    ).pack(fill='x', pady=(4, 12))
+    ).pack(fill='x', pady=(4, 2))
+    autostart_label = tk.Label(frame, text='', anchor='w', justify='left', fg='#475467')
+    autostart_label.pack(fill='x', pady=(0, 12))
+
+    def refresh_autostart_label() -> None:
+        try:
+            current = autostart.status(root)
+        except Exception:
+            autostart_label.configure(text='Automatic startup: unknown')
+            return
+        if current.installed:
+            autostart_label.configure(
+                text=f'Automatic startup: ON ({current.method})', fg='#1c7c4a'
+            )
+        else:
+            autostart_label.configure(text='Automatic startup: off', fg='#475467')
+
     output = scrolledtext.ScrolledText(frame, height=18, state='disabled', font=('Consolas', 9))
     output.pack(fill='both', expand=True)
     buttons = tk.Frame(frame)
@@ -313,16 +370,104 @@ def create_app(root: Path) -> None:
                 button.configure(state='normal')
         window.after(150, poll_events)
 
+    # The server keeps running in its own detached process, so hiding this window
+    # is safe. Minimising to the notification area keeps it out of the taskbar for
+    # the rest of the school day without the operator having to stop anything.
+    state = {'server_running': False}
+    tray = TrayIcon(
+        'EasyOJ deployment',
+        on_open=lambda: window.after(0, restore_window),
+        on_exit=lambda: window.after(0, quit_assistant),
+    )
+
+    def tray_tooltip() -> str:
+        if state['server_running']:
+            return f'EasyOJ - serving on port {_configured_port(root)}'
+        return 'EasyOJ deployment assistant'
+
+    def hide_to_tray() -> None:
+        if not tray.available:
+            window.iconify()
+            return
+        if not tray.show(tray_tooltip()):
+            window.iconify()
+            return
+        window.withdraw()
+        append('Minimised to the notification area. Double-click the icon to reopen.')
+
+    def restore_window() -> None:
+        tray.hide()
+        window.deiconify()
+        window.lift()
+        window.focus_force()
+
+    def quit_assistant() -> None:
+        tray.stop()
+        window.destroy()
+
+    def on_close() -> None:
+        # Closing the window must not look like it stopped a running server.
+        if state['server_running']:
+            hide_to_tray()
+            tray.notify('EasyOJ', 'The server is still running in the background.')
+        else:
+            quit_assistant()
+
+    def start_server_and_track(project_root: Path, log: Callable[[str], None]) -> None:
+        run_server(project_root, log)
+        state['server_running'] = True
+        window.after(0, lambda: tray.update_tooltip(tray_tooltip()))
+
+    def toggle_autostart() -> None:
+        """One button: enable when off, remove when on."""
+        try:
+            currently_on = autostart.status(root).installed
+        except Exception:
+            currently_on = False
+        action = disable_autostart if currently_on else enable_autostart
+
+        def run(project_root: Path, log: Callable[[str], None]) -> None:
+            action(project_root, log)
+            window.after(0, refresh_autostart_label)
+            window.after(0, sync_autostart_button)
+
+        start(run)
+
+    def sync_autostart_button() -> None:
+        try:
+            currently_on = autostart.status(root).installed
+        except Exception:
+            currently_on = False
+        autostart_button.configure(
+            text='Remove auto-start' if currently_on else 'Start with Windows'
+        )
+
     tk.Button(buttons, text='Initialize / repair', command=lambda: start(run_install)).pack(
         side='left'
     )
-    tk.Button(buttons, text='Start server', command=lambda: start(run_server)).pack(
+    tk.Button(buttons, text='Start server', command=lambda: start(start_server_and_track)).pack(
         side='left', padx=(8, 0)
     )
-    tk.Button(buttons, text='Close', command=window.destroy).pack(side='right')
+    tk.Button(buttons, text='Back up now', command=lambda: start(run_backup)).pack(
+        side='left', padx=(8, 0)
+    )
+    autostart_button = tk.Button(buttons, text='Start with Windows', command=toggle_autostart)
+    autostart_button.pack(side='left', padx=(8, 0))
+    tk.Button(buttons, text='Minimise to tray', command=hide_to_tray).pack(side='left', padx=(8, 0))
+    tk.Button(buttons, text='Close', command=on_close).pack(side='right')
+
+    window.protocol('WM_DELETE_WINDOW', on_close)
+    tray.start()
+    refresh_autostart_label()
+    sync_autostart_button()
     append('Choose Initialize / repair before the first launch.')
+    if not tray.available:
+        append('Notification-area icon is unavailable; Minimise will use the taskbar.')
     window.after(150, poll_events)
-    window.mainloop()
+    try:
+        window.mainloop()
+    finally:
+        tray.stop()
 
 
 def main() -> int:

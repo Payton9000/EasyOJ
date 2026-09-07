@@ -46,9 +46,12 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username', '')
         password = request.form.get('password', '')
+        # Keep ?next across a failed attempt, otherwise a single typo drops the
+        # student back to the problem list instead of where they were headed.
+        next_url = _safe_next()
         if not username or not password:
             flash(t('flash.login_required'), 'error')
-            return redirect(url_for('web.login'))
+            return render_template('auth/login.html', username=username, next=next_url)
         user = AccountService.authenticate(username, password)
         if user:
             flashed_messages = session.get('_flashes', [])
@@ -62,10 +65,10 @@ def login():
                 flash(t('flash.temp_password'), 'info')
                 return redirect(url_for('web.change_password'))
             flash(t('flash.welcome', username=user.username), 'success')
-            return redirect(_safe_next() or url_for('web.index'))
-        flash(t('flash.invalid_credentials'), 'error')
-        return redirect(url_for('web.login'))
-    return render_template('auth/login.html')
+            return redirect(next_url or url_for('web.index'))
+        flash(t(AccountService.last_failure_message_key()), 'error')
+        return render_template('auth/login.html', username=username, next=next_url)
+    return render_template('auth/login.html', next=_safe_next())
 
 
 @web_bp.route('/register', methods=['GET', 'POST'])
@@ -77,17 +80,19 @@ def register():
         email = request.form.get('email', '')
         password = request.form.get('password', '')
         confirm_password = request.form.get('confirm_password', '')
+        # Re-render instead of redirecting so a mismatched password does not also
+        # wipe the username and email the student already typed.
         if not all([username, email, password, confirm_password]):
             flash(t('flash.all_fields_required'), 'error')
-            return redirect(url_for('web.register'))
+            return render_template('auth/register.html', username=username, email=email)
         if password != confirm_password:
             flash(t('flash.password_mismatch'), 'error')
-            return redirect(url_for('web.register'))
+            return render_template('auth/register.html', username=username, email=email)
         try:
             AccountService.register(username, email, password)
         except ValueError as exc:
             flash(_account_error(exc), 'error')
-            return redirect(url_for('web.register'))
+            return render_template('auth/register.html', username=username, email=email)
         flash(t('flash.registration_success'), 'success')
         return redirect(url_for('web.login'))
     return render_template('auth/register.html')

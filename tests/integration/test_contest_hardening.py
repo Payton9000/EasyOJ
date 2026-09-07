@@ -134,7 +134,48 @@ def test_contest_submission_idempotency_key_deduplicates_retries(client, app, mo
             user_id=user_id, problem_id=problem_id, contest_id=contest_id
         ).all()
         assert len(submissions) == 1
-        assert submissions[0].client_token == 'retry-token-001'
+        # The stored key mixes the token with a digest of the payload, so a genuine
+        # edit under the same token still gets through (see the next test).
+        assert submissions[0].client_token.startswith('retry-token-001:')
+
+
+def test_reused_token_with_edited_code_is_still_submitted(client, app, monkeypatch):
+    """A student who edits their code and resubmits must not be ignored.
+
+    The problem page issues one idempotency token per GET, so a second attempt
+    reuses it. Keying only on the token discarded that attempt and sent the student
+    back to the older verdict.
+    """
+    with app.app_context():
+        user = create_user('contest_edit_user', 'contest_edit_user@example.com')
+        problem = create_problem('Contest Edit Problem')
+        contest, contest_problem = _contest(app, user=user, problem=problem)
+        contest_id = contest.id
+        alias = contest_problem.alias
+        user_id = user.id
+        problem_id = problem.id
+
+    _login(client, 'contest_edit_user')
+    monkeypatch.setattr(app.judge_engine, 'submit_judge_task', lambda submission_id: True)
+    token = 'shared-token-002'
+
+    client.post(
+        f'/contest/{contest_id}/submit/{alias}',
+        data={'language': 'python', 'code': 'print(1)', 'idempotency_key': token},
+    )
+    client.post(
+        f'/contest/{contest_id}/submit/{alias}',
+        data={'language': 'python', 'code': 'print(2)', 'idempotency_key': token},
+    )
+
+    with app.app_context():
+        codes = sorted(
+            s.code
+            for s in Submission.query.filter_by(
+                user_id=user_id, problem_id=problem_id, contest_id=contest_id
+            ).all()
+        )
+        assert codes == ['print(1)', 'print(2)']
 
 
 def test_ended_contest_problem_is_read_only_and_practice_is_explicit(client, app):

@@ -11,7 +11,9 @@ from app import db
 from app.models.problem import Problem
 from app.models.user import User
 from app.utils.file_utils import ensure_dir
+from app.utils.validation import validate_email
 from app.utils.validation import validate_password
+from app.utils.validation import validate_username
 from problem_bank.catalog import get_specs
 from problem_bank.importer import import_problem_specs
 
@@ -23,28 +25,53 @@ def _temporary_admin_password():
     return validate_password(password)
 
 
+def _admin_identity():
+    """Administrator name/email, taken from the setup wizard when it ran.
+
+    The wizard passes these through the environment so the operator's own chosen
+    account is created instead of a fixed `admin`.
+    """
+    username = os.environ.get('EASYOJ_INITIAL_ADMIN_USERNAME', 'admin')
+    email = os.environ.get('EASYOJ_INITIAL_ADMIN_EMAIL', 'admin@oj.local')
+    try:
+        username = validate_username(username)
+    except ValueError:
+        username = 'admin'
+    try:
+        email = validate_email(email)
+    except ValueError:
+        email = 'admin@oj.local'
+    return username, email
+
+
 def init_db():
     # Initialization must not start judge workers or leave child processes behind.
     builtin_specs = get_specs()
     app = create_app('development', start_judge_engine=False)
+    admin_username, admin_email = _admin_identity()
+    password_was_supplied = bool(os.environ.get('EASYOJ_INITIAL_ADMIN_PASSWORD'))
+    # Only a password the operator typed into the wizard moments ago is exempt from
+    # the forced change. A password merely passed in through the environment may
+    # come from a script or shell history, so that case still forces a change.
+    password_chosen_interactively = os.environ.get('EASYOJ_INITIAL_ADMIN_PASSWORD_CONFIRMED') == '1'
     with app.app_context():
         db.create_all()
         print('Database tables created.')
 
-        # Create the first administrator with a one-time password.  A fixed
-        # password is unsafe even on a school LAN; the GUI shows this output
-        # in its deployment log so the operator can save it securely.
-        admin_user = User.query.filter(func.lower(User.username) == 'admin').first()
+        # Create the first administrator.  A fixed password is unsafe even on a
+        # school LAN, so a generated one is printed for the operator to save.
+        admin_user = User.query.filter(func.lower(User.username) == admin_username).first()
         if not admin_user:
-            admin = User(username='admin', email='admin@oj.local', role='admin')
+            admin = User(username=admin_username, email=admin_email, role='admin')
             initial_password = _temporary_admin_password()
             admin.set_password(initial_password)
-            admin.must_change_password = True
+            admin.must_change_password = not password_chosen_interactively
             db.session.add(admin)
             db.session.commit()
             admin_user = admin
-            print('Admin user created: username=admin')
-            print(f'Temporary admin password (change at first login): {initial_password}')
+            print(f'Admin user created: username={admin_username}')
+            if not password_was_supplied:
+                print(f'Temporary admin password (change at first login): {initial_password}')
         else:
             try:
                 has_legacy_password = (
@@ -63,7 +90,7 @@ def init_db():
         # Create sample problem
         if not Problem.query.filter_by(title='A+B Problem').first():
             admin_user = (
-                admin_user or User.query.filter(func.lower(User.username) == 'admin').first()
+                admin_user or User.query.filter(func.lower(User.username) == admin_username).first()
             )
             problem = Problem(
                 title='A+B Problem',

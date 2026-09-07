@@ -18,8 +18,22 @@ class ResourceReservation:
 
 
 class _PsutilMetricProvider:
+    """Sample host load without blocking the caller.
+
+    ``cpu_percent(interval=0.1)`` sleeps for 100 ms on every expired sample, which
+    the dispatcher paid on each tick and every practice run paid inside the web
+    request. ``interval=None`` returns the average since the previous call, so a
+    warm-up sample is primed once at construction time.
+    """
+
+    def __init__(self):
+        try:
+            psutil.cpu_percent(interval=None)
+        except Exception:
+            pass
+
     def sample(self):
-        cpu_percent = float(psutil.cpu_percent(interval=0.1))
+        cpu_percent = float(psutil.cpu_percent(interval=None))
         available_memory_mb = int(psutil.virtual_memory().available / (1024 * 1024))
         return cpu_percent, available_memory_mb
 

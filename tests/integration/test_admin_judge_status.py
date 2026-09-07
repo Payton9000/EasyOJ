@@ -71,3 +71,38 @@ def test_judge_status_shows_unavailable_when_guard_is_missing(client, app, monke
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert '不可用' in body
+
+
+def test_judge_status_task_rows_name_the_submitter_and_problem(client, app, monkeypatch):
+    """Task rows must resolve the submission, not fall back to a placeholder.
+
+    ``JudgeTask`` had no ``submission`` relationship, so the template's
+    ``task.submission`` was always Undefined and both columns rendered ``?``.
+    """
+    from app import db
+    from app.models.judge_task import JudgeTask
+    from app.models.submission import Submission
+    from tests.utils import create_problem
+
+    _login_admin(client, app, 'judge_status_rows')
+    with app.app_context():
+        author = create_user('judge_row_author', 'judge_row_author@example.com')
+        problem = create_problem('Judge Row Problem')
+        submission = Submission(
+            user_id=author.id,
+            problem_id=problem.id,
+            language='python',
+            code='print(1)',
+            status='Queued',
+        )
+        db.session.add(submission)
+        db.session.flush()
+        db.session.add(JudgeTask(submission_id=submission.id, status='Queued'))
+        db.session.commit()
+
+    monkeypatch.setattr(app, 'judge_engine', None)
+    body = client.get('/admin/judge_status').get_data(as_text=True)
+
+    assert 'judge_row_author' in body
+    assert 'Judge Row Problem' in body
+    assert '<td>?</td>' not in body

@@ -14,8 +14,8 @@
 </div>
 <div style="background-color: var(--surface); padding: 20px; border-radius: 8px; border: 1px solid var(--border);">
     <h3>{{ t('admin.recent_submissions') }} ({{ recent_submissions|length }})</h3>
-    {% if recent_submissions %}<table><thead><tr><th>ID</th><th>{{ t('admin.users') }}</th><th>{{ t('admin.problems') }}</th><th>{{ t('submissions.language') }}</th><th>{{ t('submissions.status') }}</th><th>{{ t('admin.time') }}</th><th>{{ t('admin.memory') }}</th><th>{{ t('submissions.submitted_at') }}</th></tr></thead>
-    <tbody>{% for s in recent_submissions %}<tr><td>#{{ s.id }}</td><td>{{ s.author.username }}</td><td>{{ s.problem.title }}</td><td>{{ s.language }}</td><td>{{ s.status }}</td><td>{{ s.time_used or '-' }}ms</td><td>{{ s.memory_used or '-' }}KB</td><td>{{ s.submitted_at | local_datetime('%m-%d %H:%M') }}</td></tr>{% endfor %}</tbody></table>
+    {% if recent_submissions %}<div class="table-wrap"><table><thead><tr><th>ID</th><th>{{ t('admin.users') }}</th><th>{{ t('admin.problems') }}</th><th>{{ t('submissions.language') }}</th><th>{{ t('submissions.status') }}</th><th>{{ t('admin.time') }}</th><th>{{ t('admin.memory') }}</th><th>{{ t('submissions.submitted_at') }}</th></tr></thead>
+    <tbody>{% for s in recent_submissions %}<tr><td>#{{ s.id }}</td><td>{{ s.author.username }}</td><td>{{ s.problem.title }}</td><td>{{ s.language }}</td><td><span class="status-{{ s.status }}">{{ t('submission.status.' ~ s.status) }}</span></td><td>{{ (s.time_used ~ ' ms') if s.time_used is not none else '-' }}</td><td>{{ s.memory_used | memory_size }}</td><td>{{ s.submitted_at | local_datetime('%m-%d %H:%M') }}</td></tr>{% endfor %}</tbody></table></div>
     {% else %}<p style="color: var(--text-muted);">{{ t('admin.empty_submissions') }}</p>{% endif %}
 </div>
 {% endblock %}

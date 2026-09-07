@@ -118,7 +118,9 @@ def test_inactive_user_cannot_login(client, app):
     )
 
     assert response.status_code == 200
-    assert b'invalid username or password' in response.data.lower()
+    # A disabled account now says so. Claiming the password is invalid sent students
+    # to ask for a password reset that could not fix anything.
+    assert b'disabled' in response.data.lower()
     with client.session_transaction() as session:
         assert '_user_id' not in session
 

@@ -1,10 +1,6 @@
 {% extends "base.html" %}
-{% block title %}{{ problem.title }} - EasyOJ{% endblock %}
-{% block extra_head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='vendor/codemirror/easyoj-editor.css') }}">
-<script src="{{ url_for('static', filename='vendor/codemirror/easyoj-editor.js') }}" defer></script>
-<script src="{{ url_for('static', filename='js/code_workspace.js') }}" defer></script>
-{% endblock %}
+{% block title %}{{ problem.title }} - {{ config['SITE_NAME'] }}{% endblock %}
+{% block extra_head %}{% include 'problems/_workspace_head.html' %}{% endblock %}
 {% block content %}
 {% set supported_languages = config['SUPPORTED_LANGUAGES'] %}
 {% set workspace_key = 'problem:' ~ problem.id %}
