@@ -1,73 +1,50 @@
 # EasyOJ
 
-EasyOJ is a small Flask online judge for a trusted school LAN: programming
-assignments, classroom contests, and local practice. The interface follows a
-restrained LeetCode-style workspace, supports Chinese and English UI text, and
-lets signed-in users run C++, Java, or Python directly from a problem page.
-Initialization installs a reviewed 30-problem catalog with 10 test points per
-problem.
+[English](README_EN.md) · 中文
 
-## Quick start
+EasyOJ 是一个基于 Flask 的轻量级在线评测系统，面向学校局域网环境。支持编程作业布置、课堂竞赛和本地练习。界面提供中英文切换，登录用户可以从题目页面直接运行 C++、Java 或 Python 代码。首次运行自动导入内置题库（30 道题，每题 10 个测试点）。
 
-Double-click **启动 EasyOJ.bat** in this folder.
+## 快速开始
 
-The first run installs everything the service needs: a project-local `.venv`, the
-project-local MinGW, JDK, and embedded Python submission runtime, a generated
-`SECRET_KEY`, and the database with its built-in problem bank. It does not modify
-the system `PATH` and does not require globally installed compilers. Expect this
-to take a while on a slow connection; later runs go straight to serving and print
-the classroom address.
+双击项目根目录下的 **启动 EasyOJ.bat**。
 
-A short setup window then asks for the things only you can decide:
+首次运行会自动完成所有准备工作：创建项目内的 `.venv` 虚拟环境、安装本地的 MinGW、JDK 和 Python 提交运行时，生成 `SECRET_KEY`，初始化数据库和内置题库。全程不需要修改系统 `PATH`，不需要预装全局编译器。网络较慢时首次启动需要较长时间，之后每次启动直接进入服务状态并打印局域网地址。
 
-| Setting | Notes |
+首次启动会弹出设置向导，填写以下信息：
+
+| 设置项 | 说明 |
 | --- | --- |
-| Administrator username and password | How you sign in. Choose it yourself so it is never printed or lost. |
-| Site name | Shown in the header and page titles, e.g. a class or school name. |
-| Port | Defaults to 5000; the wizard suggests another if that one is taken. |
+| 管理员用户名和密码 | 登录后台的凭据，自行设置后不会打印或丢失。 |
+| 站点名称 | 显示在页面标题和导航栏，例如班级名或学校名。 |
+| 端口 | 默认 5000；若该端口被占用，向导会自动建议其他端口。 |
 
-Without a desktop session (for example over SSH) the same questions are asked as
-text prompts. Everything is stored in `.env` and can be changed later by editing
-that file.
+没有桌面环境时（例如通过 SSH 远程访问），相同的信息以命令行问答形式呈现。所有配置保存在 `.env` 文件中，后续可直接编辑修改。
 
-The service keeps running after the window closes. Double-click
-**停止 EasyOJ.bat** to stop it. Only Python 3.10 or newer needs to be present
-beforehand; the launcher explains how to install it if it is missing.
+服务启动后会在后台运行，关闭窗口不会停止。双击 **停止 EasyOJ.bat** 可停止服务。只需系统中安装了 Python 3.10 或更高版本；启动器会在缺失时自动提示安装方式。
 
-## Deployment assistant (optional)
+## 部署助手（可选）
 
-For auto-start, backups, and a notification-area icon:
+如需开机自启、自动备份和通知区图标：
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\deploy\windows\deploy_gui.py
 ```
 
-The same setup can be re-run from there with **Initialize / repair**.
+也可以在部署助手窗口中通过 **Initialize / repair** 重新执行初始化。
 
-Open `http://<host-ip>:5000` from the classroom network. Restrict the Windows
-Firewall rule to the school subnet; do not expose this profile to the public
-Internet. Initialization prints a one-time temporary password for the `admin`
-account; save it securely and change it at first login.
+在同一局域网的其他电脑上打开 `http://<本机IP>:5000` 即可访问。请在 Windows 防火墙中限制为校内网段，不要暴露到公网。初始化完成后会为 `admin` 账户生成一次性临时密码，请妥善保存并在首次登录时修改。
 
-## Running unattended
+## 后台静默运行
 
-The deployment window has three controls for day-to-day operation:
+部署助手窗口提供了日常操作控制：
 
-- **Start with Windows** adds a Startup-folder shortcut so the service comes up in
-  the background at sign-in. It needs no administrator rights, and the launcher
-  uses `pythonw.exe`, so no console window appears. Press it again to remove.
-- **Minimise to tray** hides the window without stopping the server; closing the
-  window while the server is running does the same. Double-click the
-  notification-area icon to bring it back.
-- **Back up now** writes an immediate database snapshot.
+- **开机自启** 在开机登录时自动在后台启动服务，不需要管理员权限。使用 `pythonw.exe` 运行，不会弹出命令行窗口。再次点击可取消自启。
+- **最小化到托盘** 将窗口隐藏到通知区而不关闭服务；关闭窗口的行为相同。双击通知区图标可恢复窗口。
+- **立即备份** 立刻生成一次数据库备份。
 
-The service also backs itself up: once at start-up (skipped when a backup is less
-than 20 hours old) and then daily, into `data/backups/`, keeping the newest 14.
-Backups use SQLite `VACUUM INTO`, so they are consistent and never require
-stopping the service. Copying `database.db` by hand is *not* equivalent — in WAL
-mode part of the committed state lives in the `-wal` sidecar file.
+服务还会自动备份：启动时备份一次（距上次不足 20 小时则跳过），之后每天备份一次。备份保存在 `data/backups/` 目录，最多保留 14 份。备份使用 SQLite `VACUUM INTO`，服务运行中无需停机，且备份文件一致可靠。**直接复制 `database.db` 并不等价**——在 WAL 模式下，已提交的数据分散在数据库文件和 `-wal` 侧车文件中。
 
-Equivalent commands, for anyone who prefers the shell:
+如偏好命令行，等价操作：
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\deploy\windows\autostart.py status
@@ -76,28 +53,17 @@ Equivalent commands, for anyone who prefers the shell:
 .\.venv\Scripts\python.exe scripts\backup_now.py
 ```
 
-Automatic startup can also be registered as a Scheduled Task with
-`autostart.py enable --method scheduled-task`, which brings the service up before
-anyone signs in but must be run from an elevated prompt.
+也可以通过 `autostart.py enable --method scheduled-task` 注册为计划任务，这样服务在任何人登录前就会启动，但需要管理员权限运行。
 
-The administrator area reports service health — judging state, uptime, submissions
-awaiting judgement, and the age of the last backup — under **Judge status**.
-Unattended start-up logs to `data/logs/service.log`.
+管理后台的 **判题状态** 页面显示服务运行状况——判题引擎状态、运行时长、待评测数量以及上次备份时间。无窗口启动的日志记录在 `data/logs/service.log` 中。
 
-See [docs/WINDOWS_DEPLOYMENT.md](docs/WINDOWS_DEPLOYMENT.md) for backup,
-firewall, sandbox, and recovery details.
+详见 [docs/WINDOWS_DEPLOYMENT.md](docs/WINDOWS_DEPLOYMENT.md) 了解备份、防火墙、沙箱和故障恢复的详细说明。
 
-## Safety model
+## 安全模型
 
-Production judging fails closed unless Windows AppContainer and Job Objects
-are available. Each process has CPU time, memory, process-count, output,
-workspace-size, workspace-file, and timeout limits. Submissions use absolute
-project-local command paths and `shell=False`; network access is not granted
-to AppContainer processes. Judge workers use at most half the logical CPUs and
-are hard-capped at four. Queue admission limits, per-user active limits, and a
-host CPU/memory guard prevent a classroom desktop from being overwhelmed.
+生产环境的判题在 Windows AppContainer 和 Job Object 不可用时会拒绝执行（fail-closed）。每个提交进程有 CPU 时间、内存、进程数、输出大小、工作区容量、工作区文件数和超时限制。提交代码使用项目内的绝对路径，禁止网络访问，启动方式为 `shell=False`。判题 Worker 最多使用一半逻辑 CPU，且硬性限制最多 4 个。队列准入限制、每用户并发限制和主机 CPU/内存监控防止机房电脑被压垮。
 
-## Development and verification
+## 开发与验证
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
@@ -105,28 +71,24 @@ host CPU/memory guard prevent a classroom desktop from being overwhelmed.
 .\.venv\Scripts\python.exe scripts\verify_windows.py --safe
 ```
 
-Import or repair the built-in catalog, then rehearse an isolated contest where
-five users register and submit concurrently:
+导入或修复内置题库，然后进行一场隔离的竞赛演练（5 个用户并发注册和提交）：
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\seed_problem_bank.py
 .\.venv\Scripts\python.exe scripts\demo_automated_contest.py --timeout-seconds 20
 ```
 
-The safe load test performs bounded GET requests only:
+安全负载测试仅执行有界 GET 请求：
 
 ```powershell
 .\.venv\Scripts\python.exe tests\load\safe_load_test.py
 ```
 
-## Browser editor assets
+## 前端编辑器资源
 
-Problem pages use a project-local CodeMirror 6 bundle with syntax highlighting,
-completion, snippets, brackets, folding, search, and multi-cursor editing. The
-generated files under `app/static/vendor/codemirror/` are shipped with EasyOJ,
-so normal Windows deployment does not need Node.js or an internet connection.
+题目页面使用项目本地的 CodeMirror 6 编辑器，提供语法高亮、自动补全、代码片段、括号匹配、代码折叠、搜索和多光标编辑功能。`app/static/vendor/codemirror/` 下的生成文件随 EasyOJ 一起分发，正常 Windows 部署不需要 Node.js 或网络连接。
 
-Contributors rebuilding the bundle use Node.js 20+ and pnpm locally:
+开发者如需重新构建编辑器包，本地需安装 Node.js 20+ 和 pnpm：
 
 ```powershell
 pnpm --dir frontend install --frozen-lockfile
@@ -134,12 +96,8 @@ pnpm --dir frontend test
 pnpm --dir frontend run build
 ```
 
-Do not replace the local assets with CDN links; student source and editor
-traffic must remain inside the LAN.
+请勿将本地资源替换为 CDN 链接；学生提交代码和编辑器流量必须保持在局域网内。
 
-## Adding languages
+## 新增语言支持
 
-Register an argument-vector specification in `app/judge/languages.py`, add
-absolute toolchain paths in the Windows deployment layer, and add unit plus
-judge-safety tests. Do not build shell command strings or silently fall back
-to unsandboxed production execution.
+在 `app/judge/languages.py` 中注册参数向量格式的编译/运行配置，在 Windows 部署层添加工具链的绝对路径，并补充单元测试和沙箱安全测试。不要使用 shell 命令字符串拼接，也不要静默降级为无沙箱的生产执行。
