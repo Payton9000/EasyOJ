@@ -180,6 +180,28 @@ def ensure_environment() -> bool:
     return True
 
 
+def _needs_venv_reexec() -> bool:
+    """First double-click uses system Python; the wizard needs the project .venv."""
+    if not VENV_PYTHON.is_file():
+        return False
+    try:
+        return Path(sys.executable).resolve() != VENV_PYTHON.resolve()
+    except OSError:
+        return True
+
+
+def _reexec_under_venv(argv: list[str]) -> int:
+    command = [str(VENV_PYTHON), str(Path(__file__).resolve()), *argv]
+    say('Continuing with the project Python environment...')
+    return subprocess.call(command)
+
+
+def _publish_listen_settings(port: int, site_name: str) -> None:
+    """Wizard-written .env must win over values load_dotenv cached earlier."""
+    os.environ['EASYOJ_PORT'] = str(port)
+    os.environ['EASYOJ_SITE_NAME'] = site_name
+
+
 def ensure_configuration() -> bool:
     """Create data directories, .env (with a generated SECRET_KEY), and the database.
 
@@ -220,6 +242,7 @@ def ensure_configuration() -> bool:
         return False
 
     apply_choices(choices)
+    _publish_listen_settings(choices.port, choices.site_name)
     # Credentials travel through the environment; argv is visible to other
     # processes on the machine.
     environment['EASYOJ_INITIAL_ADMIN_USERNAME'] = choices.admin_username
@@ -450,6 +473,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if not ensure_environment():
         return 1
+    if _needs_venv_reexec():
+        return _reexec_under_venv(list(argv) if argv is not None else sys.argv[1:])
     if not ensure_configuration():
         return 1
     port = _configured_port()

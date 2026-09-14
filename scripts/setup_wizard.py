@@ -14,6 +14,7 @@ remote session.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import socket
@@ -26,9 +27,22 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.utils.validation import validate_email  # noqa: E402
-from app.utils.validation import validate_password  # noqa: E402
-from app.utils.validation import validate_username  # noqa: E402
+
+def _load_validation():
+    """Load validators without importing app/__init__.py (that module needs Flask)."""
+    path = PROJECT_ROOT / 'app' / 'utils' / 'validation.py'
+    spec = importlib.util.spec_from_file_location('_easyoj_setup_validation', path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f'Cannot load validators from {path}')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_validation = _load_validation()
+validate_email = _validation.validate_email
+validate_password = _validation.validate_password
+validate_username = _validation.validate_username
 
 DEFAULT_PORT = 5000
 DEFAULT_SITE_NAME = 'EasyOJ'
@@ -305,6 +319,8 @@ def apply_choices(choices: SetupChoices) -> None:
         if key not in seen:
             updated.append(f'{key}={value}')
     env_path.write_text('\n'.join(updated) + '\n', encoding='utf-8', newline='\n')
+    os.environ['EASYOJ_PORT'] = str(choices.port)
+    os.environ['EASYOJ_SITE_NAME'] = choices.site_name
 
 
 def main(argv: list[str] | None = None) -> int:

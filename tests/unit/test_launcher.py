@@ -1,5 +1,6 @@
 """The double-click entry point is the only thing a teacher has to understand."""
 
+import os
 import socket
 import sys
 from pathlib import Path
@@ -12,6 +13,12 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 launcher = pytest.importorskip('launcher')
+
+
+@pytest.fixture(autouse=True)
+def _do_not_reexec_the_real_launcher(monkeypatch):
+    """main() must not spawn this checkout's venv during unit tests."""
+    monkeypatch.setattr(launcher, '_needs_venv_reexec', lambda: False, raising=False)
 
 
 def test_batch_entry_points_exist_at_the_project_root():
@@ -156,6 +163,51 @@ def test_start_does_not_treat_a_foreign_listener_as_this_install(monkeypatch):
     assert called['env'] is True
     assert called['cfg'] is True
     assert called['start_port'] == 5001
+
+
+def test_start_reexecs_into_project_venv_before_the_wizard(tmp_path, monkeypatch):
+    """The first double-click borrows system Python only long enough to create .venv.
+
+    Continuing in that interpreter cannot import Flask, so the wizard never opens.
+    """
+    venv_python = tmp_path / '.venv' / 'Scripts' / 'python.exe'
+    venv_python.parent.mkdir(parents=True)
+    venv_python.write_bytes(b'python')
+    monkeypatch.setattr(launcher, 'VENV_PYTHON', venv_python)
+    monkeypatch.setattr(launcher, 'PROJECT_ROOT', tmp_path)
+    monkeypatch.setattr(launcher, 'ensure_environment', lambda: True)
+    monkeypatch.setattr(launcher, '_needs_venv_reexec', lambda: True)
+    captured = {}
+
+    def fake_call(command):
+        captured['command'] = command
+        return 0
+
+    monkeypatch.setattr(launcher.subprocess, 'call', fake_call)
+
+    def must_not_configure():
+        raise AssertionError('system Python must not import the wizard')
+
+    monkeypatch.setattr(launcher, 'ensure_configuration', must_not_configure)
+
+    assert launcher.main(['start', '--no-browser']) == 0
+    assert captured['command'][0] == str(venv_python)
+    assert Path(captured['command'][1]).name == 'launcher.py'
+    assert captured['command'][2:] == ['start', '--no-browser']
+
+
+def test_publish_listen_settings_overrides_stale_dotenv_port(tmp_path, monkeypatch):
+    """load_dotenv(override=False) keeps EASYOJ_PORT=5000 after the wizard writes 5001."""
+    monkeypatch.setattr(launcher, 'PROJECT_ROOT', tmp_path)
+    monkeypatch.setenv('EASYOJ_PORT', '5000')
+    (tmp_path / '.env').write_text(
+        'EASYOJ_PORT=5001\nEASYOJ_SITE_NAME=ReadmeR5\n', encoding='utf-8'
+    )
+
+    assert launcher._configured_port() == 5000
+    launcher._publish_listen_settings(5001, 'ReadmeR5')
+    assert launcher._configured_port() == 5001
+    assert os.environ['EASYOJ_SITE_NAME'] == 'ReadmeR5'
 
 
 def test_start_rereads_port_after_the_setup_wizard(monkeypatch):

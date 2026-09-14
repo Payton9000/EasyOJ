@@ -80,6 +80,13 @@ def test_empty_site_name_is_rejected():
     assert any('Site name' in message for message in validate(choices, 'goodpass123'))
 
 
+def test_setup_wizard_does_not_import_the_flask_app():
+    """System Python on first double-click has no Flask; importing app/__init__.py fails."""
+    text = Path(setup_wizard.__file__).read_text(encoding='utf-8')
+    assert 'from app.' not in text
+    assert 'import app' not in text
+
+
 def test_suggest_port_avoids_a_busy_default(monkeypatch):
     monkeypatch.setattr(setup_wizard, 'port_is_free', lambda port: port != 5000)
     assert setup_wizard.suggest_port(5000) == 5001
