@@ -5,7 +5,7 @@ param(
     [string]$JdkUrl = "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.14%2B7/OpenJDK17U-jdk_x64_windows_hotspot_17.0.14_7.zip",
     [string]$JdkSha256 = "dddb108e0bf8c3e3a9c5c782fee5874a6a86d5323189969f17094260cf3a1125",
     [string]$PythonUrl = "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip",
-    [string]$PythonSha256 = "33b448f95fecb7c6f802157dbd5e6b40a2ad9bfc8b95ca634a06ba4073ad1ac0",
+    [string]$PythonSha256 = "009d6bf7e3b2ddca3d784fa09f90fe54336d5b60f0e0f305c37f400bf83cfd3b",
     [switch]$UseChinaMirror,
     [switch]$Force
 )

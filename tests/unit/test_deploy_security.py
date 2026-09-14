@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -104,3 +105,13 @@ def test_toolchain_script_requires_hash_verification_before_execution():
     assert 'verified' in script.lower()
     assert 'UseChinaMirror' in script
     assert 'gppPath --version' in script
+
+
+def test_windows_python_embed_pin_matches_current_python_org_zip():
+    """python.org re-released python-3.11.9-embed-amd64.zip; the old pin fails checksum."""
+    script = Path('scripts/deploy/windows/setup_toolchain.ps1').read_text(encoding='utf-8')
+    match = re.search(r'\[string\]\$PythonSha256 = "([0-9a-f]{64})"', script)
+    assert match, 'default PythonSha256 is missing'
+    # MD5 6d9aa08531d48fcc261ba667e2df17c4 on python.org for the 64-bit embed zip.
+    assert match.group(1) == '009d6bf7e3b2ddca3d784fa09f90fe54336d5b60f0e0f305c37f400bf83cfd3b'
+    assert '33b448f95fecb7c6f802157dbd5e6b40a2ad9bfc8b95ca634a06ba4073ad1ac0' not in script
