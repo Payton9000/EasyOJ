@@ -106,14 +106,17 @@ def test_toolchain_script_requires_hash_verification_before_execution():
     assert 'UseChinaMirror' in script
     assert 'gppPath --version' in script
     assert 'curl.exe' in script
-    builder = script.split('function Build-UrlCandidates', 1)[1].split('function ', 1)[0]
-    assert 'ghfast.top' in builder
-    assert builder.find('ghfast.top') < builder.find('$urls.Add($PrimaryUrl)')
-    python_builder = script.split('function Build-PythonUrlCandidates', 1)[1].split('function ', 1)[0]
-    assert 'mirrors.huaweicloud.com/python' in python_builder
-    assert python_builder.find('mirrors.huaweicloud.com/python') < python_builder.find(
-        '$urls.Add($PrimaryUrl)'
-    )
+    assert 'function Measure-UrlProbe' in script
+    assert 'function Rank-UrlCandidates' in script
+    assert 'BytesPerSecond' in script
+    downloader = script.split('function Download-VerifiedFile', 1)[1].split('function Expand-Zip', 1)[0]
+    assert 'Rank-UrlCandidates' in downloader
+    assert 'ghfast.top' in script
+    assert 'ghproxy.cn' in script
+    assert 'mirrors.huaweicloud.com/python' in script
+    assert 'cdn.npmmirror.com' in script
+    assert 'www.python.org/ftp/python' in script
+    assert 'github.com/brechtsanders/winlibs_mingw' in script
 
 
 def test_windows_python_embed_pin_matches_current_python_org_zip():

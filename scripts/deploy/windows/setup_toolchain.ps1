@@ -47,12 +47,12 @@ function Build-UrlCandidates {
         [switch]$ChinaMirror
     )
 
-    # Classroom LANs in China usually cannot finish GitHub in the launcher timeout.
-    # Always try public China reverse-proxies first, then the official URL.
+    # Official plus several China reverse-proxies. Rank-UrlCandidates picks by probe speed.
     $urls = New-Object System.Collections.Generic.List[string]
+    $urls.Add($PrimaryUrl)
     $urls.Add("https://ghfast.top/$PrimaryUrl")
     $urls.Add("https://ghproxy.cn/$PrimaryUrl")
-    $urls.Add($PrimaryUrl)
+    $urls.Add("https://mirror.ghproxy.com/$PrimaryUrl")
     return $urls
 }
 
@@ -60,10 +60,97 @@ function Build-PythonUrlCandidates {
     param([string]$PrimaryUrl)
 
     $urls = New-Object System.Collections.Generic.List[string]
+    $urls.Add($PrimaryUrl)
     $urls.Add("https://mirrors.huaweicloud.com/python/3.11.9/python-3.11.9-embed-amd64.zip")
     $urls.Add("https://cdn.npmmirror.com/binaries/python/3.11.9/python-3.11.9-embed-amd64.zip")
-    $urls.Add($PrimaryUrl)
     return $urls
+}
+
+function Measure-UrlProbe {
+    param(
+        [string]$Url,
+        [int]$ProbeBytes = 262144,
+        [int]$TimeoutSeconds = 5
+    )
+
+    $curl = Get-Command "curl.exe" -ErrorAction SilentlyContinue
+    $tmp = Join-Path ([IO.Path]::GetTempPath()) ("easyoj-probe-" + [guid]::NewGuid().ToString("n"))
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        if ($curl) {
+            $end = $ProbeBytes - 1
+            & curl.exe -L --fail --silent --show-error --max-time $TimeoutSeconds --range "0-$end" -o $tmp $Url
+            if ($LASTEXITCODE -ne 0) {
+                return [pscustomobject]@{ Url = $Url; BytesPerSecond = 0 }
+            }
+        } else {
+            $request = [Net.HttpWebRequest]::Create($Url)
+            $request.Method = "GET"
+            $request.AddRange(0, $ProbeBytes - 1)
+            $request.Timeout = $TimeoutSeconds * 1000
+            $request.ReadWriteTimeout = $TimeoutSeconds * 1000
+            $response = $request.GetResponse()
+            try {
+                $stream = $response.GetResponseStream()
+                $file = [IO.File]::Create($tmp)
+                try {
+                    $stream.CopyTo($file)
+                } finally {
+                    $file.Close()
+                    $stream.Close()
+                }
+            } finally {
+                $response.Close()
+            }
+        }
+        $sw.Stop()
+        $len = 0
+        if (Test-Path -LiteralPath $tmp) {
+            $len = (Get-Item -LiteralPath $tmp).Length
+        }
+        if ($len -le 0) {
+            return [pscustomobject]@{ Url = $Url; BytesPerSecond = 0 }
+        }
+        $sec = [Math]::Max($sw.Elapsed.TotalSeconds, 0.001)
+        return [pscustomobject]@{ Url = $Url; BytesPerSecond = [int]($len / $sec) }
+    } catch {
+        return [pscustomobject]@{ Url = $Url; BytesPerSecond = 0 }
+    } finally {
+        if (Test-Path -LiteralPath $tmp) {
+            Remove-Item -Force -LiteralPath $tmp -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Rank-UrlCandidates {
+    param([string[]]$Urls)
+
+    Write-Host "Measuring download sources..."
+    $probes = New-Object System.Collections.Generic.List[object]
+    foreach ($url in $Urls) {
+        $probe = Measure-UrlProbe -Url $url
+        $probes.Add($probe)
+        if ($probe.BytesPerSecond -gt 0) {
+            Write-Host ("  {0:N0} KB/s  {1}" -f ($probe.BytesPerSecond / 1024), $url)
+        } else {
+            Write-Host ("  unreachable  {0}" -f $url)
+        }
+    }
+    $ranked = @(
+        $probes |
+            Sort-Object BytesPerSecond -Descending |
+            Where-Object { $_.BytesPerSecond -gt 0 } |
+            ForEach-Object { $_.Url }
+    )
+    foreach ($url in $Urls) {
+        if ($ranked -notcontains $url) {
+            $ranked += $url
+        }
+    }
+    if ($ranked.Count -gt 0) {
+        Write-Host "Selected: $($ranked[0])"
+    }
+    return ,$ranked
 }
 
 function Assert-Sha256 {
@@ -89,6 +176,7 @@ function Download-VerifiedFile {
     )
 
     $curl = Get-Command "curl.exe" -ErrorAction SilentlyContinue
+    $Urls = @(Rank-UrlCandidates -Urls $Urls)
     foreach ($url in $Urls) {
         try {
             Write-Host "Downloading: $url"
