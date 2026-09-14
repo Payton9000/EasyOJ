@@ -100,6 +100,33 @@ def _compilers_ready() -> bool:
     return mingw.is_file() and runtime.is_file() and javac.is_file()
 
 
+def _is_this_checkout_listening(port: int) -> bool:
+    """True only when this project folder is the process bound to ``port``."""
+    if not _port_in_use(port):
+        return False
+    try:
+        import psutil
+    except ImportError:
+        return False
+    root = str(PROJECT_ROOT.resolve()).casefold().replace('/', '\\')
+    for connection in psutil.net_connections(kind='inet'):
+        if not (connection.laddr and connection.laddr.port == port and connection.pid):
+            continue
+        try:
+            process = psutil.Process(connection.pid)
+            parts = [process.exe() or '', *process.cmdline()]
+            try:
+                parts.append(process.cwd() or '')
+            except (OSError, psutil.Error):
+                pass
+            blob = ' '.join(parts).casefold().replace('/', '\\')
+        except (OSError, psutil.Error):
+            continue
+        if root in blob:
+            return True
+    return False
+
+
 def _run(command: list[str], *, timeout: int = 3600, env: dict[str, str] | None = None) -> int:
     say('> ' + subprocess.list2cmdline(command))
     try:
@@ -414,7 +441,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.action == 'stop':
         return 0 if stop_service(port) else 1
 
-    if _port_in_use(port):
+    if _is_this_checkout_listening(port):
         url = f'http://localhost:{port}'
         say(f'EasyOJ is already running at {url}')
         if not args.no_browser:
@@ -424,6 +451,11 @@ def main(argv: list[str] | None = None) -> int:
     if not ensure_environment():
         return 1
     if not ensure_configuration():
+        return 1
+    port = _configured_port()
+    if _port_in_use(port) and not _is_this_checkout_listening(port):
+        say(f'Port {port} is already in use by another program.')
+        say('Pick a different EASYOJ_PORT in .env, then start again.')
         return 1
     return 0 if start_service(port, open_browser=not args.no_browser) else 1
 

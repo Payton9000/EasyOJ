@@ -127,3 +127,68 @@ def test_stop_reports_when_nothing_is_running(capsys):
 
     assert launcher.stop_service(free_port) is True
     assert 'not running' in capsys.readouterr().out
+
+
+def test_start_does_not_treat_a_foreign_listener_as_this_install(monkeypatch):
+    """Another EasyOJ on :5000 must not skip first-run setup for a new folder."""
+    ports = {'value': 5000}
+    monkeypatch.setattr(launcher, '_configured_port', lambda: ports['value'])
+    monkeypatch.setattr(launcher, '_port_in_use', lambda port: port == 5000)
+    monkeypatch.setattr(launcher, '_is_this_checkout_listening', lambda port: False)
+    called = {}
+    monkeypatch.setattr(launcher, 'ensure_environment', lambda: called.setdefault('env', True) or True)
+
+    def fake_configuration():
+        ports['value'] = 5001
+        called['cfg'] = True
+        return True
+
+    monkeypatch.setattr(launcher, 'ensure_configuration', fake_configuration)
+    monkeypatch.setattr(
+        launcher,
+        'start_service',
+        lambda port, open_browser=True: called.setdefault('start_port', port) or True,
+    )
+
+    assert launcher.main(['start', '--no-browser']) == 0
+    assert called['env'] is True
+    assert called['cfg'] is True
+    assert called['start_port'] == 5001
+
+
+def test_start_rereads_port_after_the_setup_wizard(monkeypatch):
+    ports = {'value': 5000}
+
+    monkeypatch.setattr(launcher, '_configured_port', lambda: ports['value'])
+    monkeypatch.setattr(launcher, '_port_in_use', lambda port: False)
+    monkeypatch.setattr(launcher, '_is_this_checkout_listening', lambda port: False)
+    monkeypatch.setattr(launcher, 'ensure_environment', lambda: True)
+
+    def fake_configuration():
+        ports['value'] = 5001
+        return True
+
+    started = {}
+    monkeypatch.setattr(launcher, 'ensure_configuration', fake_configuration)
+    monkeypatch.setattr(
+        launcher,
+        'start_service',
+        lambda port, open_browser=True: started.setdefault('port', port) or True,
+    )
+
+    assert launcher.main(['start', '--no-browser']) == 0
+    assert started['port'] == 5001
+
+
+def test_start_exits_when_this_checkout_is_already_listening(monkeypatch, capsys):
+    monkeypatch.setattr(launcher, '_configured_port', lambda: 5000)
+    monkeypatch.setattr(launcher, '_is_this_checkout_listening', lambda port: True)
+
+    def must_not_setup():
+        raise AssertionError('must not run setup for an already-running checkout')
+
+    monkeypatch.setattr(launcher, 'ensure_environment', must_not_setup)
+    monkeypatch.setattr(launcher, 'webbrowser', type('W', (), {'open': staticmethod(lambda url: None)}))
+
+    assert launcher.main(['start', '--no-browser']) == 0
+    assert 'already running' in capsys.readouterr().out

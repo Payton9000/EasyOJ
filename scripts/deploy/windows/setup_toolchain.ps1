@@ -53,6 +53,10 @@ function Build-UrlCandidates {
     $urls.Add("https://ghfast.top/$PrimaryUrl")
     $urls.Add("https://ghproxy.cn/$PrimaryUrl")
     $urls.Add("https://mirror.ghproxy.com/$PrimaryUrl")
+    $urls.Add("https://gh-proxy.com/$PrimaryUrl")
+    if ($PrimaryUrl -match '^https://github.com/') {
+        $urls.Add(($PrimaryUrl -replace '^https://github.com/', 'https://kkgithub.com/'))
+    }
     return $urls
 }
 
@@ -111,6 +115,9 @@ function Measure-UrlProbe {
         if ($len -le 0) {
             return [pscustomobject]@{ Url = $Url; BytesPerSecond = 0 }
         }
+        if (-not (Test-ZipMagic -Path $tmp)) {
+            return [pscustomobject]@{ Url = $Url; BytesPerSecond = 0 }
+        }
         $sec = [Math]::Max($sw.Elapsed.TotalSeconds, 0.001)
         return [pscustomobject]@{ Url = $Url; BytesPerSecond = [int]($len / $sec) }
     } catch {
@@ -153,6 +160,54 @@ function Rank-UrlCandidates {
     return ,$ranked
 }
 
+function Test-ZipMagic {
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return $false
+    }
+    $stream = [IO.File]::OpenRead($Path)
+    try {
+        $header = New-Object byte[] 4
+        $read = $stream.Read($header, 0, 4)
+        return ($read -ge 2 -and $header[0] -eq 0x50 -and $header[1] -eq 0x4B)
+    } finally {
+        $stream.Close()
+    }
+}
+
+function Invoke-ResumableCurl {
+    param(
+        [string]$Url,
+        [string]$OutFile
+    )
+    $maxAttempts = 8
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        $curlArgs = @(
+            "-L",
+            "--fail",
+            "--retry", "2",
+            "--retry-all-errors",
+            "-C", "-",
+            "--progress-bar",
+            "--connect-timeout", "30",
+            "--http1.1",
+            "-o", $OutFile,
+            $Url
+        )
+        & curl.exe @curlArgs
+        if ($LASTEXITCODE -eq 0) {
+            return
+        }
+        if ($LASTEXITCODE -in 18, 28, 56) {
+            Write-Host "Connection dropped (curl $LASTEXITCODE); resuming $attempt/$maxAttempts..."
+            Start-Sleep -Seconds ([Math]::Min(15, 2 * $attempt))
+            continue
+        }
+        throw "curl.exe exited $LASTEXITCODE"
+    }
+    throw "curl.exe failed after $maxAttempts attempts"
+}
+
 function Assert-Sha256 {
     param(
         [string]$Path,
@@ -190,25 +245,15 @@ function Download-VerifiedFile {
                 }
             }
             if ($curl) {
-                $curlArgs = @(
-                    "-L",
-                    "--fail",
-                    "--retry", "2",
-                    "-C", "-",
-                    "--progress-bar",
-                    "--connect-timeout", "30",
-                    "-o", $OutFile,
-                    $url
-                )
-                & curl.exe @curlArgs
-                if ($LASTEXITCODE -ne 0) {
-                    throw "curl.exe exited $LASTEXITCODE"
-                }
+                Invoke-ResumableCurl -Url $url -OutFile $OutFile
             } else {
                 if (Test-Path -LiteralPath $OutFile) {
                     Remove-Item -Force -LiteralPath $OutFile
                 }
                 Invoke-WebRequest -Uri $url -OutFile $OutFile -UseBasicParsing
+            }
+            if (-not (Test-ZipMagic -Path $OutFile)) {
+                throw "Downloaded file is not a ZIP archive"
             }
             Assert-Sha256 -Path $OutFile -ExpectedHash $ExpectedHash
             Write-Host "Verified SHA-256: $ExpectedHash"

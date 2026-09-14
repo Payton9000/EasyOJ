@@ -36,9 +36,12 @@ checked-in static assets.
 You can also double-click **启动 EasyOJ.bat**: the first run follows the same
 prepare path and opens the setup wizard. Toolchain downloads speed-test the
 official URLs and several China mirrors, then use the fastest source (falling
-back in speed order if a checksum fails). The launcher waits up to three hours.
-A later start resumes missing compilers instead of skipping because `.venv`
-already exists.
+back in speed order if a checksum fails). Interrupted transfers resume instead
+of restarting; files that are not real ZIP archives are discarded. If port 5000
+is already taken by another program, the wizard suggests a different port and
+the launcher does not treat someone else's instance as this install. The
+launcher waits up to three hours. A later start resumes missing compilers
+instead of skipping because `.venv` already exists.
 
 ## Start and operate
 

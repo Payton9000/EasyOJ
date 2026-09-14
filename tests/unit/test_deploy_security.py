@@ -117,6 +117,13 @@ def test_toolchain_script_requires_hash_verification_before_execution():
     assert 'cdn.npmmirror.com' in script
     assert 'www.python.org/ftp/python' in script
     assert 'github.com/brechtsanders/winlibs_mingw' in script
+    assert 'function Test-ZipMagic' in script
+    assert 'function Invoke-ResumableCurl' in script
+    assert '--retry-all-errors' in script
+    assert 'kkgithub.com' in script
+    downloader = script.split('function Download-VerifiedFile', 1)[1].split('function Expand-Zip', 1)[0]
+    assert 'Invoke-ResumableCurl' in downloader
+    assert 'Test-ZipMagic' in downloader
 
 
 def test_windows_python_embed_pin_matches_current_python_org_zip():
