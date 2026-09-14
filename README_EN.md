@@ -89,7 +89,8 @@ The administrator area reports service health — judging state, uptime, submiss
 awaiting judgement, and the age of the last backup — under **Judge status**.
 Unattended start-up logs to `data/logs/service.log`.
 
-See [docs/WINDOWS_DEPLOYMENT.md](docs/WINDOWS_DEPLOYMENT.md) for backup,
+See [docs/WINDOWS_DEPLOYMENT_EN.md](docs/WINDOWS_DEPLOYMENT_EN.md) (English) or
+[docs/WINDOWS_DEPLOYMENT.md](docs/WINDOWS_DEPLOYMENT.md) (中文) for backup,
 firewall, sandbox, and recovery details.
 
 ## Safety model

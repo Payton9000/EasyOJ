@@ -1,5 +1,7 @@
 # Repository Guidelines
 
+[English](AGENTS.md) · [中文](AGENTS_ZH.md)
+
 ## Project Structure & Module Organization
 
 EasyOJ is a Windows-first Flask online judge for a trusted school LAN. Application code lives in `app/`: routes are in `app/web/` and `app/api/`, judge execution is in `app/judge/`, and templates/assets are under `app/templates/` and `app/static/`. CodeMirror source and tests live in `frontend/`; generated editor assets belong in `app/static/vendor/codemirror/`, while `frontend/node_modules/` stays untracked. The built-in catalog is in `problem_bank/`; runtime test points use `data/problems/<id>/testcases/<n>.in` and `<n>.out`. Tests are grouped under `tests/unit/`, `tests/integration/`, `tests/e2e/`, and bounded `tests/load/`.

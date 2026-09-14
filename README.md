@@ -59,7 +59,7 @@ EasyOJ 是一个基于 Flask 的轻量级在线评测系统，面向学校局域
 
 管理后台的 **判题状态** 页面显示服务运行状况——判题引擎状态、运行时长、待评测数量以及上次备份时间。无窗口启动的日志记录在 `data/logs/service.log` 中。
 
-详见 [docs/WINDOWS_DEPLOYMENT.md](docs/WINDOWS_DEPLOYMENT.md) 了解备份、防火墙、沙箱和故障恢复的详细说明。
+详见 [docs/WINDOWS_DEPLOYMENT.md](docs/WINDOWS_DEPLOYMENT.md)（中文）或 [docs/WINDOWS_DEPLOYMENT_EN.md](docs/WINDOWS_DEPLOYMENT_EN.md)（English）了解备份、防火墙、沙箱和故障恢复的详细说明。
 
 ## 安全模型
 

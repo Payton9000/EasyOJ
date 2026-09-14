@@ -1,4 +1,6 @@
-# Windows Deployment
+# Windows 部署
+
+[English](README_EN.md) · 中文
 
 日用 Windows 机器（学校内网作业/课堂竞赛）推荐使用图形化部署助手：
 
@@ -14,7 +16,7 @@
 .\scripts\deploy\windows\start_easyoj.ps1
 ```
 
-默认监听 `0.0.0.0:5000` 供内网访问。请仅在可信内网开放 Windows 防火墙端口，并首次登录后修改初始化管理员密码。
+默认监听 `0.0.0.0:5000` 供内网访问。请仅在可信内网开放 Windows 防火墙端口，并首次登录后修改初始化管理员密码。完整教室运维说明见 [docs/WINDOWS_DEPLOYMENT.md](../../docs/WINDOWS_DEPLOYMENT.md)（沙箱、备份、`--safe` / `--dev`）。
 
 以下旧脚本仍可单独使用，仅负责下载本地工具链：
 
@@ -26,7 +28,7 @@
 
 功能：
 - 下载 MinGW + JDK
-- 解压到 `OJ_System/toolchain`
+- 解压到 `toolchain/`
 - 检查 `g++` / `javac` 是否可用
 
 用法：
