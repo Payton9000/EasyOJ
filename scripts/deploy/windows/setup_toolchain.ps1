@@ -157,7 +157,45 @@ function Rank-UrlCandidates {
     if ($ranked.Count -gt 0) {
         Write-Host "Selected: $($ranked[0])"
     }
-    return ,$ranked
+    $list = New-Object System.Collections.Generic.List[string]
+    foreach ($url in $ranked) {
+        [void]$list.Add([string]$url)
+    }
+    return $list
+}
+
+function ConvertTo-UrlList {
+    param($Items)
+    $out = New-Object System.Collections.Generic.List[string]
+    if ($null -eq $Items) {
+        return $out
+    }
+    $queue = New-Object System.Collections.Queue
+    $queue.Enqueue($Items)
+    while ($queue.Count -gt 0) {
+        $item = $queue.Dequeue()
+        if ($null -eq $item) {
+            continue
+        }
+        if ($item -is [string]) {
+            $text = [string]$item
+            if ($text -match '\shttps?://') {
+                throw "Refusing malformed URL list: $text"
+            }
+            if ($text.Length -gt 0) {
+                [void]$out.Add($text)
+            }
+            continue
+        }
+        if ($item -is [System.Collections.IEnumerable]) {
+            foreach ($inner in @($item)) {
+                $queue.Enqueue($inner)
+            }
+            continue
+        }
+        [void]$out.Add([string]$item)
+    }
+    return $out
 }
 
 function Test-ZipMagic {
@@ -231,8 +269,8 @@ function Download-VerifiedFile {
     )
 
     $curl = Get-Command "curl.exe" -ErrorAction SilentlyContinue
-    $Urls = @(Rank-UrlCandidates -Urls $Urls)
-    foreach ($url in $Urls) {
+    $ordered = ConvertTo-UrlList (Rank-UrlCandidates -Urls $Urls)
+    foreach ($url in $ordered) {
         try {
             Write-Host "Downloading: $url"
             if (Test-Path -LiteralPath $OutFile) {

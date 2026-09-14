@@ -1,5 +1,6 @@
 import json
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -122,8 +123,40 @@ def test_toolchain_script_requires_hash_verification_before_execution():
     assert '--retry-all-errors' in script
     assert 'kkgithub.com' in script
     downloader = script.split('function Download-VerifiedFile', 1)[1].split('function Expand-Zip', 1)[0]
-    assert 'Invoke-ResumableCurl' in downloader
-    assert 'Test-ZipMagic' in downloader
+    assert 'ConvertTo-UrlList' in downloader
+    assert 'return ,$ranked' not in script
+
+
+def test_convert_to_url_list_unwinds_powershell_unary_comma_wrap():
+    """`return ,$array` made curl see one space-joined URL. Flattening must undo that."""
+    script = Path('scripts/deploy/windows/setup_toolchain.ps1').read_text(encoding='utf-8')
+    start = script.index('function ConvertTo-UrlList')
+    rest = script[start:]
+    end = rest.find('\nfunction ', 1)
+    function_text = rest[:end]
+    command = (
+        function_text
+        + "\n$nested = ,@('https://a.example/one.zip','https://b.example/two.zip')\n"
+        + '$list = ConvertTo-UrlList $nested\n'
+        + 'Write-Output $list.Count\n'
+        + 'Write-Output $list[0]\n'
+        + 'Write-Output $list[1]\n'
+    )
+    completed = subprocess.run(
+        ['powershell.exe', '-NoProfile', '-Command', command],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        encoding='utf-8',
+        errors='replace',
+    )
+    assert completed.returncode == 0, completed.stderr
+    lines = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+    assert lines[:3] == [
+        '2',
+        'https://a.example/one.zip',
+        'https://b.example/two.zip',
+    ]
 
 
 def test_windows_python_embed_pin_matches_current_python_org_zip():
