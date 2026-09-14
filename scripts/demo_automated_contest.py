@@ -214,11 +214,10 @@ def _set_contest_running(app, contest_id):
         contest.start_time = datetime.utcnow() - timedelta(seconds=1)
         contest.end_time = datetime.utcnow() + timedelta(minutes=10)
         db.session.commit()
-        if contest.status != 'Running' or contest.is_registration_open:
+        if contest.status != 'Running':
             raise DemoError(
                 'contest time transition failed: '
                 f'status={contest.status!r}, '
-                f'is_registration_open={contest.is_registration_open!r}, '
                 f'start={contest.start_time!r}, end={contest.end_time!r}'
             )
 

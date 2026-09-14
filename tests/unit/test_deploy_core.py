@@ -43,7 +43,8 @@ def test_generate_env_preserves_existing_secret_and_uses_bounded_defaults(projec
     content = env_path.read_text(encoding='utf-8')
 
     assert f"SECRET_KEY={'k' * 64}" in content
-    assert 'MAX_JUDGE_WORKERS=8' in content
+    assert 'MAX_JUDGE_WORKERS=' not in content
+    assert 'JUDGE_WORKER_CAP=' not in content
     assert 'JUDGE_REQUIRE_SANDBOX=1' in content
 
 

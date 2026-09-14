@@ -293,7 +293,7 @@ class JudgeEngine:
         self.execution_service = _JudgeExecutionService(app, self.max_retries, self.log_dir)
         self._task_timeout_cache = {}
         self.host_guard = HostCapacityGuard(
-            app.config.get('JUDGE_HOST_MAX_CPU_PERCENT', 85),
+            app.config.get('JUDGE_HOST_MAX_CPU_PERCENT', 100),
             app.config.get('JUDGE_HOST_MIN_AVAILABLE_MEMORY_MB', 1024),
             reserved_memory_budget_mb=app.config.get('JUDGE_RESERVED_MEMORY_BUDGET_MB'),
             reserved_process_budget=app.config.get('JUDGE_RESERVED_PROCESS_BUDGET'),
@@ -793,6 +793,9 @@ class JudgeEngine:
 
 def _worker_process(config_name, task_queue, stop_event, max_retries, log_dir, worker_config):
     from app import create_app
+    from app.judge.sandbox import apply_judge_background_priority
+
+    apply_judge_background_priority()
 
     overrides = {k: v for k, v in worker_config.items() if v is not None}
 

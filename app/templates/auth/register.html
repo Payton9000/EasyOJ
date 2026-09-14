@@ -24,7 +24,7 @@
             <label for="confirm_password">{{ t('auth.confirm_password') }}</label>
             <input type="password" id="confirm_password" name="confirm_password" minlength="8" autocomplete="new-password" required>
         </div>
-        <button class="btn btn-primary" type="submit">{{ t('auth.register.create') }}</button>
+        <button class="btn btn-primary" id="register-submit" type="submit" data-action="register">{{ t('auth.register.create') }}</button>
     </form>
     <p class="auth-links">{{ t('auth.register.already') }} <a href="{{ url_for('web.login') }}">{{ t('auth.login') }}</a>.</p>
 </section>

@@ -1,36 +1,54 @@
 import pytest
 
-
-def _calculate_judge_workers():
-    try:
-        from app.config import calculate_judge_workers
-    except ImportError as exc:
-        pytest.fail(f'worker calculation is not implemented yet: {exc}')
-    return calculate_judge_workers
+from app.config import calculate_judge_workers
+from app.config import host_cpu_limit
+from app.config import judge_worker_limits
 
 
 @pytest.mark.parametrize(
     ('cpu_count', 'cap', 'expected'),
     [
-        (1, 4, 1),
-        (2, 4, 1),
-        (4, 4, 2),
-        (8, 4, 4),
-        (32, 4, 4),
+        (1, None, 1),
+        (2, None, 2),
+        (4, None, 4),
+        (8, None, 8),
+        (16, None, 16),
+        (32, None, 32),
         (32, 2, 2),
+        (8, 4, 4),
     ],
 )
-def test_worker_count_uses_at_most_half_the_host_and_obeys_cap(cpu_count, cap, expected):
-    calculate = _calculate_judge_workers()
-
-    assert calculate(cpu_count, cap) == expected
+def test_worker_count_defaults_to_logical_cpus_and_optional_cap(cpu_count, cap, expected):
+    if cap is None:
+        assert calculate_judge_workers(cpu_count) == expected
+    else:
+        assert calculate_judge_workers(cpu_count, cap) == expected
 
 
 def test_worker_count_never_returns_zero_or_negative():
-    calculate = _calculate_judge_workers()
+    assert calculate_judge_workers(0) == 1
+    assert calculate_judge_workers(0, 8) == 1
+    assert calculate_judge_workers(4, 0) == 1
 
-    assert calculate(0, 8) == 1
-    assert calculate(4, 0) == 1
+
+def test_config_workers_follow_host_cpus_without_a_hard_four_cap():
+    workers, cap = judge_worker_limits(cpu_count=16, environ={})
+    assert workers == 16
+    assert cap == 16
+
+
+def test_config_honors_operator_worker_overrides_above_four():
+    workers, cap = judge_worker_limits(
+        cpu_count=4,
+        environ={'MAX_JUDGE_WORKERS': '12', 'JUDGE_WORKER_CAP': '12'},
+    )
+    assert workers == 12
+    assert cap == 12
+
+
+def test_default_host_cpu_limit_allows_full_machine():
+    assert host_cpu_limit(environ={}) == 100
+    assert host_cpu_limit(environ={'JUDGE_HOST_MAX_CPU_PERCENT': '70'}) == 70
 
 
 def test_python_toolchain_prefers_project_local_runtime(tmp_path):

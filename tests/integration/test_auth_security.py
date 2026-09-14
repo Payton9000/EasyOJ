@@ -1,16 +1,5 @@
-import importlib
-
-import pytest
-
 from app import db
 from app.models.user import User
-
-
-def _account_service():
-    try:
-        return importlib.import_module('app.services.account_service').AccountService
-    except (ImportError, AttributeError) as exc:
-        pytest.fail(f'account service is not implemented yet: {exc}')
 
 
 def test_register_normalizes_username_and_email(client, app):

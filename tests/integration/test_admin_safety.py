@@ -1,19 +1,10 @@
-import importlib
 from datetime import datetime
 from datetime import timedelta
 from io import BytesIO
 
-import pytest
-
 from app import db
 from app.models.user import User
-
-
-def _account_service():
-    try:
-        return importlib.import_module('app.services.account_service').AccountService
-    except (ImportError, AttributeError) as exc:
-        pytest.fail(f'account service is not implemented yet: {exc}')
+from app.services.account_service import AccountService
 
 
 def _create_admin(username, email):
@@ -42,8 +33,14 @@ def test_admin_cannot_disable_self(client, app):
         assert db.session.get(User, admin_id).is_active is True
 
 
+def test_anonymous_admin_pages_redirect_to_login(client):
+    response = client.get('/admin/dashboard', follow_redirects=False)
+
+    assert response.status_code == 302
+    assert '/login' in response.headers['Location']
+
+
 def test_only_last_active_admin_cannot_be_disabled(app):
-    AccountService = _account_service()
     with app.app_context():
         admin = _create_admin('only_admin', 'only-admin@example.com')
         assert AccountService.can_change_admin_state(admin, actor=admin, active=False) is False

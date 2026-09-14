@@ -34,7 +34,7 @@
     <form class="inline-form-row" method="POST" action="{{ url_for('web.contest_register', contest_id=contest.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="password" name="password" placeholder="{{ t('contest.password_placeholder') }}" required>
-        <button class="btn btn-primary" type="submit">{{ t('contest.register') }}</button>
+        <button class="btn btn-primary" id="contest-register-password" type="submit" data-action="contest-register">{{ t('contest.register') }}</button>
     </form>
 </section>
 {% endif %}
@@ -94,7 +94,7 @@
                 {% if has_password %}
                 <div class="form-group"><label for="contest-password">{{ t('contest.password_placeholder') }}</label><input id="contest-password" type="password" name="password" required></div>
                 {% endif %}
-                <button class="btn btn-primary" type="submit">{{ t('contest.register') }}</button>
+                <button class="btn btn-primary" id="contest-register" type="submit" data-action="contest-register">{{ t('contest.register') }}</button>
             </form>
             {% endif %}
         {% else %}<div class="empty-state">{{ t('contest.registration_closed_detail', time=contest.start_time | local_datetime) if contest.status != 'Ended' else t('contest.registration_closed') }}</div>{% endif %}

@@ -22,7 +22,7 @@
                 <span class="nav-user">{{ current_user.username }}</span>
                 <form class="logout-form" method="POST" action="{{ url_for('web.logout') }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button class="logout-button" type="submit">{{ t('nav.logout') }}</button>
+                    <button class="logout-button" id="logout-submit" type="submit" data-action="logout">{{ t('nav.logout') }}</button>
                 </form>
             {% else %}
                 <a href="{{ url_for('web.login') }}">{{ t('nav.login') }}</a>
@@ -30,7 +30,7 @@
             {% endif %}
             <form class="locale-form" method="POST" action="{{ url_for('web.set_language', locale='en' if locale == 'zh-CN' else 'zh-CN') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button class="locale-button" type="submit">{{ t('nav.language') }}</button>
+                <button class="locale-button" id="locale-toggle" type="submit" data-action="locale">{{ t('nav.language') }}</button>
             </form>
         </nav>
     </div>

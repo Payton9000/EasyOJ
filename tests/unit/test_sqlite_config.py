@@ -2,34 +2,16 @@ from app import create_app
 from app import db
 
 
-def test_sqlite_wal_mode_enabled(app):
-    with app.app_context():
-        result = db.session.execute(db.text('PRAGMA journal_mode')).scalar()
-        assert result == 'wal'
-
-
-def test_sqlite_busy_timeout_set(app):
-    with app.app_context():
-        result = db.session.execute(db.text('PRAGMA busy_timeout')).scalar()
-        assert result >= 5000
-
-
-def test_sqlite_foreign_keys_enabled(app):
-    with app.app_context():
-        result = db.session.execute(db.text('PRAGMA foreign_keys')).scalar()
-        assert result == 1
-
-
-def test_sqlite_pragma_configuration_is_idempotent_for_one_app(app):
+def test_sqlite_pragmas_are_applied_and_idempotent(app):
     from app import _configure_sqlite_pragmas
 
     with app.app_context():
+        assert db.session.execute(db.text('PRAGMA journal_mode')).scalar() == 'wal'
+        assert db.session.execute(db.text('PRAGMA busy_timeout')).scalar() >= 5000
+        assert db.session.execute(db.text('PRAGMA foreign_keys')).scalar() == 1
         _configure_sqlite_pragmas(app)
         _configure_sqlite_pragmas(app)
-
-    with app.app_context():
-        result = db.session.execute(db.text('PRAGMA journal_mode')).scalar()
-        assert result == 'wal'
+        assert db.session.execute(db.text('PRAGMA journal_mode')).scalar() == 'wal'
 
 
 def test_sqlite_pragmas_apply_to_every_app_engine(tmp_path):

@@ -18,6 +18,8 @@ EasyOJ 是一个基于 Flask 的轻量级在线评测系统，面向学校局域
 | 站点名称 | 显示在页面标题和导航栏，例如班级名或学校名。 |
 | 端口 | 默认 5000；若该端口被占用，向导会自动建议其他端口。 |
 
+学生自行注册时，用户名必须是 **3–32** 个字符，仅限小写字母、数字、`.`、`-` 或 `_`。
+
 没有桌面环境时（例如通过 SSH 远程访问），相同的信息以命令行问答形式呈现。所有配置保存在 `.env` 文件中，后续可直接编辑修改。
 
 服务启动后会在后台运行，关闭窗口不会停止。双击 **停止 EasyOJ.bat** 可停止服务。只需系统中安装了 Python 3.10 或更高版本；启动器会在缺失时自动提示安装方式。
@@ -61,14 +63,14 @@ EasyOJ 是一个基于 Flask 的轻量级在线评测系统，面向学校局域
 
 ## 安全模型
 
-生产环境的判题在 Windows AppContainer 和 Job Object 不可用时会拒绝执行（fail-closed）。每个提交进程有 CPU 时间、内存、进程数、输出大小、工作区容量、工作区文件数和超时限制。提交代码使用项目内的绝对路径，禁止网络访问，启动方式为 `shell=False`。判题 Worker 最多使用一半逻辑 CPU，且硬性限制最多 4 个。队列准入限制、每用户并发限制和主机 CPU/内存监控防止机房电脑被压垮。
+生产环境的判题在 Windows AppContainer 和 Job Object 不可用时会拒绝执行（fail-closed）。每个提交进程有 CPU 时间、内存、进程数、输出大小、工作区容量、工作区文件数和超时限制。提交代码使用项目内的绝对路径，禁止网络访问，启动方式为 `shell=False`。判题 Worker 默认每个逻辑 CPU 一个。沙箱进程和 Worker 以低于正常的优先级运行：主机空闲时仍可占满 CPU，桌面和 Web 服务需要时可以抢占，避免卡死；提交无法把自己提升到高优先级。队列准入限制、每用户并发限制和至少 1 GB 可用内存的监控防止内存耗尽导致死机。
 
 ## 开发与验证
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\ruff.exe check app scripts tests problem_bank
-.\.venv\Scripts\python.exe scripts\verify_windows.py --safe
+.\.venv\Scripts\python.exe scripts\verify_windows.py --safe --dev
 ```
 
 导入或修复内置题库，然后进行一场隔离的竞赛演练（5 个用户并发注册和提交）：

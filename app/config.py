@@ -54,15 +54,31 @@ def _safe_int(value, default):
         return default
 
 
-def calculate_judge_workers(cpu_count=None, cap=4):
-    """Use at most half the host CPUs and never exceed the safety cap."""
-    cpu = _safe_int(cpu_count, os.cpu_count() or 2)
-    worker_cap = max(1, _safe_int(cap, 4))
-    return max(1, min(max(1, cpu // 2), worker_cap))
+def calculate_judge_workers(cpu_count=None, cap=None):
+    """Default to one worker per logical CPU; cap is an optional operator bound."""
+    cpu = max(1, _safe_int(cpu_count, os.cpu_count() or 1))
+    if cap is None:
+        return cpu
+    worker_cap = max(1, _safe_int(cap, cpu))
+    return min(cpu, worker_cap)
 
 
-def _auto_judge_workers():
-    return calculate_judge_workers(os.cpu_count(), 4)
+def judge_worker_limits(cpu_count=None, environ=None):
+    """Resolve worker count and cap from the host and optional environment overrides."""
+    env = os.environ if environ is None else environ
+    cpu_workers = calculate_judge_workers(cpu_count)
+    worker_cap = max(1, _safe_int(env.get('JUDGE_WORKER_CAP'), cpu_workers))
+    max_workers = min(
+        max(1, _safe_int(env.get('MAX_JUDGE_WORKERS'), cpu_workers)),
+        worker_cap,
+    )
+    return max_workers, worker_cap
+
+
+def host_cpu_limit(environ=None):
+    """Default to 100% so dispatch is not paused while the host is fully used."""
+    env = os.environ if environ is None else environ
+    return min(max(1, _safe_int(env.get('JUDGE_HOST_MAX_CPU_PERCENT'), 100)), 100)
 
 
 class Config:
@@ -72,11 +88,7 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLITE_BUSY_TIMEOUT_MS = max(5000, _safe_int(os.environ.get('SQLITE_BUSY_TIMEOUT_MS'), 30000))
 
-    JUDGE_WORKER_CAP = min(max(1, _safe_int(os.environ.get('JUDGE_WORKER_CAP'), 4)), 4)
-    MAX_JUDGE_WORKERS = min(
-        max(1, _safe_int(os.environ.get('MAX_JUDGE_WORKERS'), _auto_judge_workers())),
-        JUDGE_WORKER_CAP,
-    )
+    MAX_JUDGE_WORKERS, JUDGE_WORKER_CAP = judge_worker_limits()
     JUDGE_TIMEOUT = 30000  # milliseconds
     JUDGE_COMPILE_TIMEOUT_MS = 30000
     JUDGE_COMPILE_MEMORY_MB = 512
@@ -91,10 +103,7 @@ class Config:
         max(1, _safe_int(os.environ.get('JUDGE_USER_ACTIVE_MAX'), 3)),
         20,
     )
-    JUDGE_HOST_MAX_CPU_PERCENT = min(
-        max(1, _safe_int(os.environ.get('JUDGE_HOST_MAX_CPU_PERCENT'), 85)),
-        100,
-    )
+    JUDGE_HOST_MAX_CPU_PERCENT = host_cpu_limit()
     JUDGE_HOST_MIN_AVAILABLE_MEMORY_MB = min(
         max(256, _safe_int(os.environ.get('JUDGE_HOST_MIN_AVAILABLE_MEMORY_MB'), 1024)),
         32768,

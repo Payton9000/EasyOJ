@@ -1,18 +1,9 @@
-import importlib
-
 import pytest
 
-
-def _policy_class():
-    try:
-        return importlib.import_module('app.judge.policy').JudgePolicy
-    except (ImportError, AttributeError) as exc:
-        pytest.fail(f'judge policy is not implemented yet: {exc}')
+from app.judge.policy import JudgePolicy
 
 
 def test_policy_caps_workers_and_limits():
-    JudgePolicy = _policy_class()
-
     policy = JudgePolicy.from_config(
         {
             'MAX_JUDGE_WORKERS': 32,
@@ -33,8 +24,6 @@ def test_policy_caps_workers_and_limits():
 
 
 def test_policy_fails_closed_when_required_sandbox_is_disabled():
-    JudgePolicy = _policy_class()
-
     with pytest.raises(ValueError, match='sandbox'):
         JudgePolicy.from_config(
             {
@@ -45,8 +34,6 @@ def test_policy_fails_closed_when_required_sandbox_is_disabled():
 
 
 def test_policy_requires_appcontainer_in_strict_production_mode():
-    JudgePolicy = _policy_class()
-
     with pytest.raises(ValueError, match='AppContainer'):
         JudgePolicy.from_config(
             {
@@ -59,8 +46,6 @@ def test_policy_requires_appcontainer_in_strict_production_mode():
 
 
 def test_policy_clamps_invalid_limits_to_safe_values():
-    JudgePolicy = _policy_class()
-
     policy = JudgePolicy.from_config(
         {
             'MAX_JUDGE_WORKERS': 0,
@@ -82,8 +67,6 @@ def test_policy_clamps_invalid_limits_to_safe_values():
 
 
 def test_policy_caps_operator_overrides_to_machine_safe_bounds():
-    JudgePolicy = _policy_class()
-
     policy = JudgePolicy.from_config(
         {
             'MAX_JUDGE_WORKERS': 64,

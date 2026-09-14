@@ -1,18 +1,10 @@
 from pathlib import Path
 
-import pytest
-
-
-def _sandbox_helpers():
-    import app.judge.sandbox as sandbox
-
-    if not hasattr(sandbox, 'build_sandbox_environment'):
-        pytest.fail('sandbox environment builder is not implemented yet')
-    return sandbox.build_sandbox_environment, sandbox._resolve_allow_paths
+from app.judge.sandbox import _resolve_allow_paths
+from app.judge.sandbox import build_sandbox_environment
 
 
 def test_sandbox_environment_does_not_expose_application_secrets(tmp_path):
-    build_sandbox_environment, _ = _sandbox_helpers()
     work_dir = str(tmp_path / 'work')
     env = build_sandbox_environment(
         work_dir,
@@ -34,15 +26,13 @@ def test_sandbox_environment_does_not_expose_application_secrets(tmp_path):
 
 
 def test_cpp_allow_paths_include_local_toolchain(tmp_path):
-    _, resolve_allow_paths = _sandbox_helpers()
     gpp = tmp_path / 'toolchain' / 'mingw64' / 'bin' / 'g++.exe'
-    paths = resolve_allow_paths([], str(tmp_path / 'work'), {'g++': str(gpp)}, 'cpp')
+    paths = _resolve_allow_paths([], str(tmp_path / 'work'), {'g++': str(gpp)}, 'cpp')
 
     assert Path(gpp).parent in {Path(path) for path in paths}
 
 
 def test_language_environment_does_not_expose_other_compilers(tmp_path):
-    build_sandbox_environment, _ = _sandbox_helpers()
     paths = {
         'g++': str(tmp_path / 'toolchain' / 'mingw64' / 'bin' / 'g++.exe'),
         'javac': str(tmp_path / 'toolchain' / 'jdk' / 'bin' / 'javac.exe'),
@@ -58,9 +48,8 @@ def test_language_environment_does_not_expose_other_compilers(tmp_path):
 
 
 def test_python_allow_paths_include_venv_metadata_parent(tmp_path):
-    _, resolve_allow_paths = _sandbox_helpers()
     python_exe = tmp_path / '.venv' / 'Scripts' / 'python.exe'
-    paths = resolve_allow_paths(
+    paths = _resolve_allow_paths(
         [],
         str(tmp_path / 'work'),
         {'python': str(python_exe)},

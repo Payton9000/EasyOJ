@@ -35,6 +35,15 @@ def test_host_guard_pauses_when_cpu_is_above_threshold():
     assert reason == 'host CPU usage is 90.0% (limit 85%)'
 
 
+def test_host_guard_does_not_pause_for_cpu_when_limit_is_100():
+    guard = HostCapacityGuard(100, 1024, metric_provider=_MetricProvider((100.0, 4096)))
+
+    assert guard.can_dispatch() == (True, '')
+
+    saturated = HostCapacityGuard(100, 1024, metric_provider=_MetricProvider((110.0, 4096)))
+    assert saturated.can_dispatch() == (True, '')
+
+
 def test_host_guard_pauses_when_available_memory_is_below_reserve():
     guard = HostCapacityGuard(85, 1024, metric_provider=_MetricProvider((20.0, 512)))
 

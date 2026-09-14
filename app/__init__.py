@@ -436,6 +436,13 @@ def _run_schema_migrations(app):
             used.add(label)
             connection.execute('UPDATE contest_problem SET alias = ? WHERE id = ?', (label, row_id))
 
+    def migrate_contest_late_registration(connection):
+        existing = {row[1] for row in connection.execute("PRAGMA table_info('contest')").fetchall()}
+        if 'close_registration_at_start' not in existing:
+            connection.execute(
+                'ALTER TABLE contest ADD COLUMN close_registration_at_start BOOLEAN DEFAULT 0 NOT NULL'
+            )
+
     run_sqlite_migrations(
         db_path,
         [
@@ -443,6 +450,7 @@ def _run_schema_migrations(app):
             migrate_submission_idempotency,
             migrate_hot_path_indexes,
             migrate_contest_problem_aliases,
+            migrate_contest_late_registration,
         ],
         timeout_seconds=max(1, app.config.get('SQLITE_BUSY_TIMEOUT_MS', 30000) / 1000),
     )

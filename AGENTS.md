@@ -16,11 +16,12 @@ Use the project-local environment on Windows:
 .venv\Scripts\ruff.exe check app scripts tests problem_bank
 .venv\Scripts\ruff.exe format --check app scripts tests problem_bank
 .venv\Scripts\python.exe scripts\verify_windows.py --safe
+.venv\Scripts\python.exe scripts\verify_windows.py --safe --dev
 pnpm --dir frontend test
 pnpm --dir frontend run build
 ```
 
-`init_db.py` creates the database and imports 30 built-in problems. Use `scripts/seed_problem_bank.py` to idempotently repair/reimport that catalog. The final verification command includes real AppContainer smoke submissions.
+`init_db.py` creates the database and imports 30 built-in problems. Use `scripts/seed_problem_bank.py` to idempotently repair/reimport that catalog. Classroom `--safe` verification is toolchain plus AppContainer smoke; `--dev` also runs compileall, Ruff, and pytest.
 
 ## Coding Style & Naming Conventions
 

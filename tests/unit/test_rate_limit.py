@@ -1,19 +1,11 @@
-import importlib
 from datetime import datetime
 from datetime import timedelta
 
-import pytest
-
-
-def _limiter_class():
-    try:
-        return importlib.import_module('app.utils.rate_limit').LoginRateLimiter
-    except (ImportError, AttributeError) as exc:
-        pytest.fail(f'login rate limiter is not implemented yet: {exc}')
+from app.utils.rate_limit import BoundedWindowLimiter
+from app.utils.rate_limit import LoginRateLimiter
 
 
 def test_login_rate_limiter_blocks_after_consecutive_failures():
-    LoginRateLimiter = _limiter_class()
     limiter = LoginRateLimiter(max_failures=2, lockout_seconds=60)
     now = datetime(2026, 1, 1, 12, 0, 0)
 
@@ -26,7 +18,6 @@ def test_login_rate_limiter_blocks_after_consecutive_failures():
 
 
 def test_success_clears_login_failures():
-    LoginRateLimiter = _limiter_class()
     limiter = LoginRateLimiter(max_failures=2, lockout_seconds=60)
     now = datetime(2026, 1, 1, 12, 0, 0)
 
@@ -37,7 +28,6 @@ def test_success_clears_login_failures():
 
 
 def test_rate_limiter_bounds_unknown_username_state():
-    LoginRateLimiter = _limiter_class()
     limiter = LoginRateLimiter(max_failures=3, max_entries=2)
     now = datetime(2026, 1, 1, 12, 0, 0)
 
@@ -48,8 +38,6 @@ def test_rate_limiter_bounds_unknown_username_state():
 
 
 def test_bounded_window_limiter_caps_actions_and_resets():
-    from app.utils.rate_limit import BoundedWindowLimiter
-
     limiter = BoundedWindowLimiter(max_events=2, window_seconds=10, max_entries=2)
     now = datetime(2026, 1, 1, 12, 0, 0)
 
@@ -60,8 +48,6 @@ def test_bounded_window_limiter_caps_actions_and_resets():
 
 
 def test_bounded_window_limiter_does_not_grow_past_entry_cap():
-    from app.utils.rate_limit import BoundedWindowLimiter
-
     limiter = BoundedWindowLimiter(max_events=1, window_seconds=60, max_entries=2)
     now = datetime(2026, 1, 1, 12, 0, 0)
 

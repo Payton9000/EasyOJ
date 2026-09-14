@@ -181,3 +181,20 @@ def test_api_submit_rejects_non_string_fields(client, app):
         'code': 400,
         'message': 'Language and code must be strings',
     }
+
+
+def test_api_submit_rejects_unsupported_language(client, app):
+    with app.app_context():
+        user = create_user('unsupported_lang_user', 'unsupported-lang@example.com')
+        problem = create_problem('Unsupported Language Problem')
+        username = user.username
+        problem_id = problem.id
+
+    _login(client, username)
+    response = client.post(
+        f'/api/submit/{problem_id}',
+        json={'language': 'ruby', 'code': 'puts 1'},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {'code': 400, 'message': 'Unsupported language'}

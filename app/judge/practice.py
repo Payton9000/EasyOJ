@@ -23,7 +23,7 @@ class PracticeRunService:
     def __init__(self, app):
         self.app = app
         self.host_guard = HostCapacityGuard(
-            app.config.get('JUDGE_HOST_MAX_CPU_PERCENT', 85),
+            app.config.get('JUDGE_HOST_MAX_CPU_PERCENT', 100),
             app.config.get('JUDGE_HOST_MIN_AVAILABLE_MEMORY_MB', 1024),
         )
         self._semaphore = threading.BoundedSemaphore(

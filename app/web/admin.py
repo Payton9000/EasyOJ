@@ -42,6 +42,7 @@ from app.utils.file_utils import validate_testcase_storage
 from app.utils.file_utils import validate_testcase_upload
 from app.utils.file_utils import validate_upload_filename
 from app.utils.http import safe_referrer as _safe_referrer
+from app.utils.time_utils import format_local_datetime_input
 from app.utils.time_utils import parse_local_datetime_to_utc
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -116,10 +117,21 @@ def _parse_local_datetime_to_utc(value):
     return parse_local_datetime_to_utc(value, local_timezone=local_timezone)
 
 
+def _local_datetime_input_value(value):
+    local_timezone = current_app.config.get('LOCAL_TIMEZONE') if has_app_context() else None
+    return format_local_datetime_input(value, local_timezone=local_timezone)
+
+
 # ============ 仪表盘 ============
 
 
 @admin_bp.route('/', methods=['GET'])
+@admin_required
+def dashboard_index():
+    """Keep a single canonical dashboard URL for navigation and bookmarks."""
+    return redirect(url_for('admin.dashboard'))
+
+
 @admin_bp.route('/dashboard', methods=['GET'])
 @admin_required
 def dashboard():
@@ -640,6 +652,8 @@ def _parse_contest_form(form, existing=None):
         'start_time_raw': form.get('start_time', ''),
         'end_time_raw': form.get('end_time', ''),
         'max_participants': form.get('max_participants', '').strip(),
+        'close_registration_at_start': 'close_registration_at_start' in form,
+        'start_now': str(form.get('start_now', '')).strip() in {'1', 'on', 'true', 'yes'},
         'start_time': None,
         'end_time': None,
     }
@@ -647,25 +661,32 @@ def _parse_contest_form(form, existing=None):
     if not values['title']:
         errors.append(t('admin.contest_title_required'))
 
+    started = existing is not None and existing.status in ('Running', 'Ended')
+    start_now = values['start_now'] and not started
+    start_time = None
+    if start_now:
+        start_time = datetime.utcnow().replace(second=0, microsecond=0)
+        values['start_time_raw'] = _local_datetime_input_value(start_time)
     try:
-        start_time = _parse_local_datetime_to_utc(values['start_time_raw'])
         end_time = _parse_local_datetime_to_utc(values['end_time_raw'])
+        if started:
+            start_time = existing.start_time
+            stored_start = _local_datetime_input_value(existing.start_time)
+            if values['start_time_raw'] and values['start_time_raw'] != stored_start:
+                flask_flash(t('admin.start_started'), 'warning')
+        elif start_now:
+            pass
+        else:
+            start_time = _parse_local_datetime_to_utc(values['start_time_raw'])
     except (ValueError, TypeError):
         errors.append(t('admin.datetime_invalid'))
         return values, errors
-
-    started = existing is not None and existing.status in ('Running', 'Ended')
-    if started:
-        # The start time is history at this point; keep it and say so.
-        if start_time != existing.start_time:
-            flask_flash(t('admin.start_started'), 'warning')
-        start_time = existing.start_time
 
     if start_time >= end_time:
         errors.append(
             t('admin.end_time_not_before_start') if started else t('admin.start_before_end')
         )
-    if existing is None and start_time < datetime.utcnow():
+    if existing is None and not start_now and start_time < datetime.utcnow():
         errors.append(t('admin.start_not_past'))
 
     low, high = MAX_PARTICIPANTS_RANGE
@@ -705,6 +726,7 @@ def create_contest():
         is_sealed=values['is_sealed'],
         password=values['password'],
         max_participants=values['max_participants'],
+        close_registration_at_start=values['close_registration_at_start'],
         created_by=current_user.id,
     )
 
@@ -738,6 +760,7 @@ def edit_contest(contest_id):
     contest.is_public = values['is_public']
     contest.is_sealed = values['is_sealed']
     contest.max_participants = values['max_participants']
+    contest.close_registration_at_start = values['close_registration_at_start']
 
     # The stored value is a hash and cannot be rendered back into the form, so a
     # blank field used to wipe the password and silently open a private contest.

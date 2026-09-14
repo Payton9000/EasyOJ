@@ -1,17 +1,7 @@
-import importlib
-
-import pytest
-
-
-def _executor_class():
-    try:
-        return importlib.import_module('app.judge.executor').Executor
-    except (ImportError, AttributeError) as exc:
-        pytest.fail(f'executor safety policy is not implemented yet: {exc}')
+from app.judge.executor import Executor
 
 
 def test_sandbox_enabled_host_without_support_fails_closed(app, monkeypatch, tmp_path):
-    Executor = _executor_class()
     app.config.update(
         {
             'SANDBOX_ENABLED': True,

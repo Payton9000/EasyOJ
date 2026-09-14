@@ -3,10 +3,15 @@
     validation error never discards what the teacher typed. -#}
 {% set cur_public = form.is_public if form else (contest.is_public if contest else True) %}
 {% set cur_sealed = form.is_sealed if form else (contest.is_sealed if contest else False) %}
+{% set cur_close = form.close_registration_at_start if form else (contest.close_registration_at_start if contest else False) %}
+{% set can_start_now = not contest or contest.status not in ('Running', 'Ended') %}
 {% block admin_content %}
 <h2>{{ t('admin.edit') if contest else t('admin.create') }} {{ t('admin.contests') }}</h2>
 <form method="POST" class="form-card">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if form and form.start_now %}
+    <input type="hidden" name="start_now" value="1">
+    {% endif %}
     <div class="form-group">
         <label for="cf-title">{{ t('contests.title_label') }} <span class="required-mark" aria-hidden="true">*</span></label>
         <input type="text" id="cf-title" name="title" required
@@ -19,9 +24,13 @@
     <div class="form-group">
         <label for="cf-start">{{ t('contests.start') }} <span class="required-mark" aria-hidden="true">*</span></label>
         <input type="datetime-local" id="cf-start" name="start_time" required
-               {% if contest and contest.status in ('Running', 'Ended') %}readonly aria-describedby="cf-start-help"{% endif %}
+               {% if contest and contest.status in ('Running', 'Ended') %}readonly aria-describedby="cf-start-help"{% else %}aria-describedby="cf-start-help"{% endif %}
                value="{{ form.start_time_raw if form else (contest.start_time | local_datetime_input if contest else '') }}">
-        {% if contest and contest.status in ('Running', 'Ended') %}<p class="form-help" id="cf-start-help">{{ t('admin.start_started') }}</p>{% endif %}
+        {% if contest and contest.status in ('Running', 'Ended') %}
+        <p class="form-help" id="cf-start-help">{{ t('admin.start_started') }}</p>
+        {% else %}
+        <p class="form-help" id="cf-start-help">{{ t('admin.start_now_help') }}</p>
+        {% endif %}
     </div>
     <div class="form-group">
         <label for="cf-end">{{ t('contests.end') }} <span class="required-mark" aria-hidden="true">*</span></label>
@@ -51,8 +60,15 @@
     <div class="form-group">
         <label class="checkbox-label" for="cf-sealed"><input type="checkbox" id="cf-sealed" name="is_sealed" {% if cur_sealed %}checked{% endif %}> {{ t('admin.form_sealed') }}</label>
     </div>
+    <div class="form-group">
+        <label class="checkbox-label" for="cf-close-reg"><input type="checkbox" id="cf-close-reg" name="close_registration_at_start" {% if cur_close %}checked{% endif %}> {{ t('admin.close_registration_at_start') }}</label>
+        <p class="form-help">{{ t('admin.close_registration_help') }}</p>
+    </div>
     <div class="form-actions">
-        <button type="submit" class="btn btn-primary">{{ t('admin.save') }}</button>
+        <button type="submit" class="btn btn-primary" id="contest-save" data-action="contest-save">{{ t('admin.save') }}</button>
+        {% if can_start_now %}
+        <button type="submit" class="btn btn-secondary" id="contest-start-now" name="start_now" value="1" formnovalidate data-action="start-now">{{ t('admin.start_now') }}</button>
+        {% endif %}
         <a href="{{ url_for('admin.contests_list') }}" class="btn btn-secondary">{{ t('admin.cancel') }}</a>
     </div>
 </form>

@@ -24,6 +24,8 @@ toolchain. It is safe to run again; it does not change the system PATH. The
 older `setup_toolchain.ps1` remains available for toolchain/runtime-only repair.
 Initialization also installs the built-in 30-problem catalog and its 300 test
 points; repeating it updates the catalog without duplicating problems.
+Student usernames must be 3–32 characters: lowercase letters, numbers, `.`,
+`-`, or `_`. The register form states this next to the username field.
 The CodeMirror editor is already compiled under
 `app/static/vendor/codemirror/`; deployment does not download editor code or
 require Node.js. Node and pnpm are developer-only tools for rebuilding those
@@ -35,10 +37,13 @@ checked-in static assets.
 .\scripts\deploy\windows\start_easyoj.ps1
 ```
 
-Production mode uses Waitress, binds to `0.0.0.0:5000` for the LAN, and keeps
-judge workers at no more than half the logical CPUs with a hard cap of four
-(the supplied `.env.example` starts with two). Set `EASYOJ_HOST=127.0.0.1`
-when testing locally. Restrict the Windows Firewall rule to the school subnet.
+Production mode uses Waitress, binds to `0.0.0.0:5000` for the LAN, and starts
+one judge worker per logical CPU unless `MAX_JUDGE_WORKERS` is set. Set
+`EASYOJ_HOST=127.0.0.1` when testing locally. The service does not bind ports
+80 or 443 (those need administrator rights and TLS). The launcher prints
+`0.0.0.0:5000` plus RFC1918 classroom URLs; it ignores loopback, link-local,
+Cloudflare WARP (`198.18.0.0/15`), and CGNAT (`100.64.0.0/10`). Restrict the
+Windows Firewall rule to the school subnet.
 
 The production judge requires Windows AppContainer plus Job Objects. If either
 the required Windows capability or the local toolchain is unavailable, code is
@@ -49,10 +54,14 @@ Each submission is capped at 64 KB of source, 64 KB of captured output, 20
 seconds of execution, 512 MB of memory, 64 MB of workspace, and 1,024
 workspace files. Non-admin accounts are limited to 30 submissions per minute;
 the limit is intentionally conservative for a shared classroom machine. The
-dispatcher pauses above 85% host CPU or below 1 GB available memory. Queue,
-global-active, and per-user-active caps reject excess work before it can exhaust
-the host. Web practice runs are additionally limited to one concurrent process
-by default and five seconds.
+dispatcher pauses below 1 GB available memory to avoid paging the host to death.
+Judge workers and sandboxed submissions run at below-normal priority: they can
+still fill idle CPU, but the desktop and web server can preempt them, and a
+submission cannot raise itself to HIGH/REALTIME. Set
+`JUDGE_HOST_MAX_CPU_PERCENT` below 100 only if you also want dispatch to back
+off under CPU load. Queue, global-active, and per-user-active caps reject excess
+work before it can exhaust the host. Web practice runs are additionally limited
+to one concurrent process by default and five seconds.
 
 ## Backup and recovery
 
@@ -68,8 +77,23 @@ are marked `no-store` and force the recipient to change the password.
 
 ## Safe verification
 
+Classroom installs only have `requirements.txt`, so Ruff and pytest are not
+installed. `--safe` checks the local toolchain and the AppContainer sandbox:
+
 ```powershell
 .\.venv\Scripts\python.exe scripts\verify_windows.py --safe
+```
+
+On a development machine with `requirements-dev.txt`, add `--dev` to also run
+compileall, Ruff, and pytest:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\verify_windows.py --safe --dev
+```
+
+Contest rehearsal and the bounded load smoke still use a temporary database:
+
+```powershell
 .\.venv\Scripts\python.exe scripts\demo_automated_contest.py --timeout-seconds 20
 .\.venv\Scripts\python.exe tests\load\safe_load_test.py --duration 10 --users 4 --workers 2 --max-requests 20
 ```

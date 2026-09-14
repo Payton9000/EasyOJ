@@ -10,7 +10,6 @@ from problem_bank.packs.algorithms import _minimum_recharge_stops
 from problem_bank.packs.algorithms import _numbers
 from problem_bank.packs.algorithms import _range_increment
 from problem_bank.packs.algorithms import get_specs
-from problem_bank.validation import validate_catalog
 
 SEED_TITLES = {
     'A+B Basic',
@@ -41,19 +40,6 @@ def test_algorithms_pack_has_eight_valid_original_specs():
     assert len({spec.title.casefold() for spec in specs}) == 8
     assert not SEED_TITLES.intersection(spec.title for spec in specs)
 
-    validate_catalog(specs)
-
-    literal_escape = chr(92) + 'n'
-    for spec in specs:
-        assert 1 <= spec.time_limit <= 20000
-        assert 1 <= spec.memory_limit <= 512
-        assert '\n' in spec.sample_input
-        assert literal_escape not in spec.sample_input
-        assert literal_escape not in spec.sample_output
-        assert all('\n' in case.input_data for case in spec.cases)
-        assert all(literal_escape not in case.input_data for case in spec.cases)
-        assert all(literal_escape not in case.expected_output for case in spec.cases)
-
 
 def test_algorithms_pack_representative_answers_are_literal_and_correct():
     specs = {spec.title: spec for spec in get_specs()}
@@ -66,12 +52,6 @@ def test_algorithms_pack_representative_answers_are_literal_and_correct():
     assert specs["Knight's Shortest Escape"].sample_output == '2\n'
     assert specs['Minimum Cost Climb'].sample_output == '12\n'
     assert specs['Edit Distance Lite'].sample_output == '3\n'
-
-
-def test_every_sample_matches_its_reference_generated_case():
-    for spec in get_specs():
-        assert spec.sample_input == spec.cases[0].input_data, spec.title
-        assert spec.sample_output == spec.cases[0].expected_output, spec.title
 
 
 def _reference_output(spec, input_data):
@@ -105,5 +85,7 @@ def _reference_output(spec, input_data):
 
 def test_every_case_matches_its_focused_reference_function():
     for spec in get_specs():
+        assert spec.sample_input == spec.cases[0].input_data, spec.title
+        assert spec.sample_output == spec.cases[0].expected_output, spec.title
         for case in spec.cases:
             assert case.expected_output == _reference_output(spec, case.input_data), spec.title

@@ -49,16 +49,7 @@ if nums:
     submission_id = res.get_json()['data']['submission_id']
 
     result = _poll_submission(client, submission_id)
-    if result['status'] != 'AC':
-        print('AC TEST FAILED. Result:', result)
-        with app.app_context():
-            from app.models.judge_task import JudgeTask
-
-            task = JudgeTask.query.filter_by(submission_id=submission_id).first()
-            if task and task.debug_log_path:
-                with open(task.debug_log_path, encoding='utf-8') as f:
-                    print('Debug log:', f.read())
-        assert False, f"Failed with {result['status']}"
+    assert result['status'] == 'AC'
 
     code_wa = """
 print(0)
@@ -122,8 +113,6 @@ def bad_func()
         data=json.dumps({'language': 'python', 'code': code_re}),
         content_type='application/json',
     )
-    if res.status_code != 200:
-        print(res.get_json())
     assert res.status_code == 200
     submission_id = res.get_json()['data']['submission_id']
 

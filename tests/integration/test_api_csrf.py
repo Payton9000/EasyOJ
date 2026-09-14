@@ -68,16 +68,12 @@ def test_api_submit_requires_csrf_header_when_enabled(client, app, monkeypatch):
         app.config['WTF_CSRF_ENABLED'] = False
 
 
-def test_api_404_returns_json(client, app):
-    app.config['WTF_CSRF_ENABLED'] = True
-    try:
-        res = client.get('/api/nonexistent')
-        assert res.status_code == 404
-        assert res.is_json
-        data = res.get_json()
-        assert data['code'] == 404
-    finally:
-        app.config['WTF_CSRF_ENABLED'] = False
+def test_api_404_returns_json(client):
+    res = client.get('/api/nonexistent')
+    assert res.status_code == 404
+    assert res.is_json
+    data = res.get_json()
+    assert data['code'] == 404
 
 
 def test_api_unknown_problem_returns_json_404(client, app):

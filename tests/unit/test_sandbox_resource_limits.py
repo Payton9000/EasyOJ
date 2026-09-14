@@ -25,6 +25,7 @@ class _FakeWin32Job:
     JOB_OBJECT_LIMIT_PROCESS_TIME = 4
     JOB_OBJECT_LIMIT_PROCESS_MEMORY = 8
     JOB_OBJECT_LIMIT_JOB_MEMORY = 16
+    JOB_OBJECT_LIMIT_PRIORITY_CLASS = 32
     JobObjectExtendedLimitInformation = object()
 
     def CreateJobObject(self, _attributes, _name):
@@ -47,6 +48,32 @@ def test_job_object_sets_aggregate_memory_limit_and_process_limit(monkeypatch):
     assert limits['ActiveProcessLimit'] == 4
     assert limits['LimitFlags'] & fake_job_api.JOB_OBJECT_LIMIT_JOB_MEMORY
     assert job.info['JobMemoryLimit'] == 128 * 1024 * 1024
+
+
+def test_job_object_locks_below_normal_priority_so_the_host_stays_interactive(monkeypatch):
+    fake_job_api = _FakeWin32Job()
+    monkeypatch.setattr(sandbox, 'win32job', fake_job_api, raising=False)
+
+    job = sandbox._create_job_object(2_000, 128, 4)
+    limits = job.info['BasicLimitInformation']
+
+    assert limits['LimitFlags'] & fake_job_api.JOB_OBJECT_LIMIT_PRIORITY_CLASS
+    assert limits['PriorityClass'] == sandbox.win32process.BELOW_NORMAL_PRIORITY_CLASS
+
+
+def test_judge_background_priority_uses_below_normal(monkeypatch):
+    called = []
+    monkeypatch.setattr(sandbox, 'IS_WINDOWS', True)
+    monkeypatch.setattr(sandbox, 'PYWIN32_AVAILABLE', True)
+    monkeypatch.setattr(sandbox.win32api, 'GetCurrentProcess', lambda: 'current')
+    monkeypatch.setattr(
+        sandbox.win32process,
+        'SetPriorityClass',
+        lambda handle, priority: called.append((handle, priority)),
+    )
+
+    assert sandbox.apply_judge_background_priority() is True
+    assert called == [('current', sandbox.win32process.BELOW_NORMAL_PRIORITY_CLASS)]
 
 
 def test_process_tree_usage_counts_child_memory_and_processes(monkeypatch):

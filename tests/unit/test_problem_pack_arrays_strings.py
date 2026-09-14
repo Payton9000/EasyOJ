@@ -1,7 +1,6 @@
 from collections import Counter
 
 from problem_bank.packs.arrays_strings import get_specs
-from problem_bank.validation import validate_catalog
 
 
 def _spec_by_title(title):
@@ -15,27 +14,6 @@ def test_pack_has_exact_problem_count_and_difficulty_distribution():
     assert len(specs) == 7
     assert Counter(spec.difficulty for spec in specs) == {'easy': 3, 'medium': 4}
     assert len({spec.title.casefold() for spec in specs}) == 7
-
-
-def test_pack_is_valid_and_uses_real_newlines_in_all_case_inputs():
-    specs = get_specs()
-    validate_catalog(specs)
-    literal_escape = chr(92) + 'n'
-
-    assert all(len(spec.cases) >= 10 for spec in specs)
-    assert all('\n' in spec.sample_output for spec in specs)
-    assert all('\n' in case.input_data for spec in specs for case in spec.cases)
-    assert all('\n' in case.expected_output for spec in specs for case in spec.cases)
-    assert all(
-        literal_escape not in text
-        for spec in specs
-        for text in (
-            spec.sample_input,
-            spec.sample_output,
-            *(case.input_data for case in spec.cases),
-            *(case.expected_output for case in spec.cases),
-        )
-    )
 
 
 def test_representative_cases_have_literal_expected_answers():

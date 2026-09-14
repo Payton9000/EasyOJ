@@ -18,6 +18,18 @@ def test_auth_form_contains_csrf_token(client):
     body = response.get_data(as_text=True)
 
     assert 'name="csrf_token"' in body
+    assert 'id="login-submit"' in body
+    assert 'data-action="login"' in body
+
+
+def test_register_and_locale_buttons_have_stable_identities(client):
+    register = client.get('/register').get_data(as_text=True)
+    login = client.get('/login').get_data(as_text=True)
+
+    assert 'id="register-submit"' in register
+    assert 'data-action="register"' in register
+    assert 'id="locale-toggle"' in login
+    assert 'data-action="locale"' in login
 
 
 def test_problem_list_exposes_clear_filter_and_empty_state(client):

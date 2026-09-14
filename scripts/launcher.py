@@ -12,6 +12,7 @@ works for the tray GUI and the auto-start launcher.
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import os
 import socket
 import subprocess
@@ -42,18 +43,30 @@ def _port_in_use(port: int) -> bool:
         return False
 
 
-def _configured_port() -> int:
+def _env_setting(name: str) -> str:
+    raw = os.environ.get(name, '')
+    if raw:
+        return raw
     env_file = PROJECT_ROOT / '.env'
-    raw = os.environ.get('EASYOJ_PORT', '')
-    if not raw and env_file.is_file():
+    if env_file.is_file():
+        prefix = f'{name}='
         for line in env_file.read_text(encoding='utf-8').splitlines():
-            if line.strip().startswith('EASYOJ_PORT='):
-                raw = line.split('=', 1)[1].strip()
-                break
+            stripped = line.strip()
+            if stripped.startswith(prefix):
+                return stripped.split('=', 1)[1].strip().strip('"').strip("'")
+    return ''
+
+
+def _configured_port() -> int:
+    raw = _env_setting('EASYOJ_PORT')
     try:
         return max(1, min(65535, int(raw or 5000)))
     except ValueError:
         return 5000
+
+
+def _configured_host() -> str:
+    return _env_setting('EASYOJ_HOST') or '0.0.0.0'
 
 
 def _system_python() -> list[str] | None:
@@ -214,9 +227,11 @@ def start_service(port: int, *, open_browser: bool = True) -> bool:
         return False
 
     url = f'http://localhost:{port}'
+    host = _configured_host()
     say()
     say('=' * 58)
     say('  EasyOJ is running.')
+    say(f'  Listening:              http://{host}:{port}')
     say(f'  On this computer:      {url}')
     for address in _lan_addresses():
         say(f'  From the classroom:    http://{address}:{port}')
@@ -229,20 +244,113 @@ def start_service(port: int, *, open_browser: bool = True) -> bool:
     return True
 
 
-def _lan_addresses() -> list[str]:
-    """Best-effort LAN addresses so the teacher can tell students where to go."""
-    found = []
+_WARP_BENCHMARK = ipaddress.ip_network('198.18.0.0/15')
+_CGNAT = ipaddress.ip_network('100.64.0.0/10')
+_RFC1918 = (
+    ipaddress.ip_network('10.0.0.0/8'),
+    ipaddress.ip_network('172.16.0.0/12'),
+    ipaddress.ip_network('192.168.0.0/16'),
+)
+
+
+def _is_classroom_ipv4(address: str) -> bool:
+    """Keep addresses students can actually open; drop loopback, tunnels, CGNAT."""
+    try:
+        packed = ipaddress.IPv4Address(address)
+    except (ValueError, ipaddress.AddressValueError):
+        return False
+    if packed.is_loopback or packed.is_link_local or packed.is_unspecified or packed.is_multicast:
+        return False
+    if packed in _WARP_BENCHMARK or packed in _CGNAT:
+        return False
+    return True
+
+
+def _is_rfc1918(address: str) -> bool:
+    packed = ipaddress.IPv4Address(address)
+    return any(packed in network for network in _RFC1918)
+
+
+def _is_virtual_adapter(name: str) -> bool:
+    lowered = (name or '').lower()
+    return any(
+        token in lowered
+        for token in (
+            'vethernet',
+            'virtual',
+            'docker',
+            'wsl',
+            'vbox',
+            'vmware',
+            'hyper-v',
+            'loopback',
+        )
+    )
+
+
+def _default_route_ipv4() -> str | None:
     try:
         probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
-            # No packet is sent; this just selects the default outbound interface.
             probe.connect(('10.255.255.255', 1))
-            found.append(probe.getsockname()[0])
+            return probe.getsockname()[0]
         finally:
             probe.close()
     except OSError:
-        pass
-    return [address for address in found if not address.startswith('127.')]
+        return None
+
+
+def _interface_ipv4_records() -> list[tuple[str, str]]:
+    found: list[tuple[str, str]] = []
+    try:
+        import psutil
+    except ImportError:
+        psutil = None
+    if psutil is not None:
+        for name, addresses in psutil.net_if_addrs().items():
+            for item in addresses:
+                family = getattr(item, 'family', None)
+                try:
+                    is_ipv4 = int(family) == int(socket.AF_INET)
+                except (TypeError, ValueError):
+                    is_ipv4 = family == socket.AF_INET
+                if not is_ipv4:
+                    continue
+                address = (item.address or '').split('%')[0]
+                if address:
+                    found.append((address, name or ''))
+    if found:
+        return found
+    probe = _default_route_ipv4()
+    if probe:
+        found.append((probe, ''))
+    return found
+
+
+def _interface_ipv4_addresses() -> list[str]:
+    return [address for address, _name in _interface_ipv4_records()]
+
+
+def _virtual_adapter_ipv4_addresses() -> list[str]:
+    return [address for address, name in _interface_ipv4_records() if _is_virtual_adapter(name)]
+
+
+def _lan_addresses() -> list[str]:
+    """Classroom IPv4, default-route first; skip Hyper-V/Docker/WSL when a real NIC exists."""
+    classroom: list[str] = []
+    for address in _interface_ipv4_addresses():
+        if _is_classroom_ipv4(address) and address not in classroom:
+            classroom.append(address)
+    virtual = set(_virtual_adapter_ipv4_addresses())
+    chosen = [address for address in classroom if address not in virtual] or classroom
+    unique: list[str] = []
+    probe = _default_route_ipv4()
+    if probe in chosen:
+        unique.append(probe)
+    for address in sorted(chosen, key=lambda item: (0 if _is_rfc1918(item) else 1, item)):
+        if address not in unique:
+            unique.append(address)
+    return unique
 
 
 def stop_service(port: int) -> bool:

@@ -20,8 +20,6 @@ MANAGED_ENV_DEFAULTS = {
     'FLASK_ENV': 'production',
     'EASYOJ_HOST': '0.0.0.0',
     'EASYOJ_PORT': '5000',
-    'MAX_JUDGE_WORKERS': '8',
-    'JUDGE_WORKER_CAP': '8',
     'JUDGE_QUEUE_MAXSIZE': '200',
     'JUDGE_REQUIRE_SANDBOX': '1',
     'SANDBOX_ENABLED': '1',

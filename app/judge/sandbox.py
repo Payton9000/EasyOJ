@@ -668,6 +668,21 @@ def _ensure_traverse_paths(paths, appcontainer_sid):
         _remember_static_grant(key)
 
 
+def apply_judge_background_priority():
+    """Run judge workers below-normal so leftover CPU is used without freezing the host."""
+    if not IS_WINDOWS or not PYWIN32_AVAILABLE:
+        return False
+    try:
+        win32process.SetPriorityClass(
+            win32api.GetCurrentProcess(),
+            win32process.BELOW_NORMAL_PRIORITY_CLASS,
+        )
+        return True
+    except Exception as exc:
+        logger.warning('Could not lower judge process priority: %s', exc)
+        return False
+
+
 def _grant_read_execute(path, appcontainer_sid):
     if not os.path.exists(path):
         return
@@ -716,6 +731,15 @@ def _create_job_object(time_limit_ms, memory_limit_mb, max_processes):
         if job_memory_flag:
             info['JobMemoryLimit'] = int(memory_limit_mb * 1024 * 1024)
             limits['LimitFlags'] |= job_memory_flag
+
+    priority_flag = getattr(win32job, 'JOB_OBJECT_LIMIT_PRIORITY_CLASS', 0)
+    priority_class = getattr(win32process, 'BELOW_NORMAL_PRIORITY_CLASS', 0)
+    if priority_flag and priority_class:
+        # Lock submissions below-normal so they can still saturate idle cores
+        # without starving the desktop, web server, or raising themselves to
+        # HIGH/REALTIME (which would freeze the host).
+        limits['LimitFlags'] |= priority_flag
+        limits['PriorityClass'] = int(priority_class)
 
     win32job.SetInformationJobObject(job, win32job.JobObjectExtendedLimitInformation, info)
     return job

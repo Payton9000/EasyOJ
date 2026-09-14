@@ -148,34 +148,56 @@ def _check_sandbox():
     return True
 
 
+def classroom_check_names(*, dev=False):
+    """Names of checks for a classroom install versus a developer machine.
+
+    Classroom ``.venv`` only has ``requirements.txt``, so Ruff and pytest are
+    not present. ``--safe`` therefore stays at toolchain plus sandbox smoke.
+    """
+    if dev:
+        return [
+            'compileall',
+            'ruff-check',
+            'ruff-format',
+            'pytest',
+            'toolchain',
+            'sandbox',
+        ]
+    return ['toolchain', 'sandbox']
+
+
+def _check_runners(python):
+    return {
+        'compileall': lambda: _run(
+            'compileall', [python, '-m', 'compileall', '-q', 'app', 'scripts', 'tests'], 120
+        ),
+        'ruff-check': lambda: _run(
+            'ruff-check', [python, '-m', 'ruff', 'check', 'app', 'scripts', 'tests'], 120
+        ),
+        'ruff-format': lambda: _run(
+            'ruff-format',
+            [python, '-m', 'ruff', 'format', '--check', 'app', 'scripts', 'tests'],
+            120,
+        ),
+        'pytest': lambda: _run('pytest', [python, '-m', 'pytest', '-q', '--maxfail=1'], 300),
+        'toolchain': _check_toolchain,
+        'sandbox': _check_sandbox,
+    }
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Bounded EasyOJ verification')
     parser.add_argument('--safe', action='store_true', required=True, help='required safety gate')
+    parser.add_argument(
+        '--dev',
+        action='store_true',
+        help='also run compileall, Ruff, and pytest (needs requirements-dev.txt)',
+    )
     args = parser.parse_args(argv)
-    del args
 
     python = _project_python()
-    checks = [
-        (
-            'compileall',
-            _run('compileall', [python, '-m', 'compileall', '-q', 'app', 'scripts', 'tests'], 120),
-        ),
-        (
-            'ruff-check',
-            _run('ruff-check', [python, '-m', 'ruff', 'check', 'app', 'scripts', 'tests'], 120),
-        ),
-        (
-            'ruff-format',
-            _run(
-                'ruff-format',
-                [python, '-m', 'ruff', 'format', '--check', 'app', 'scripts', 'tests'],
-                120,
-            ),
-        ),
-        ('pytest', _run('pytest', [python, '-m', 'pytest', '-q', '--maxfail=1'], 300)),
-        ('toolchain', _check_toolchain()),
-        ('sandbox', _check_sandbox()),
-    ]
+    runners = _check_runners(python)
+    checks = [(name, runners[name]()) for name in classroom_check_names(dev=args.dev)]
     failed = [name for name, passed in checks if not passed]
     if failed:
         print('FAILED: ' + ', '.join(failed))

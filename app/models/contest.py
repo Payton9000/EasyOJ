@@ -19,6 +19,7 @@ class Contest(db.Model):
     is_sealed = db.Column(db.Boolean, default=False)
     password = db.Column(db.String(256))  # 比赛密码，可为空
     max_participants = db.Column(db.Integer, default=0)  # 0表示不限制
+    close_registration_at_start = db.Column(db.Boolean, default=False, nullable=False)
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -61,9 +62,11 @@ class Contest(db.Model):
 
     @property
     def is_registration_open(self):
-        """判断是否可以报名"""
+        """判断是否可以报名。默认开赛后到结束前仍可报名。"""
         now = datetime.utcnow()
-        if now >= self.start_time:
+        if now >= self.end_time:
+            return False
+        if self.close_registration_at_start and now >= self.start_time:
             return False
         if self.max_participants == 0:
             return True

@@ -28,6 +28,9 @@ A short setup window then asks for the things only you can decide:
 | Site name | Shown in the header and page titles, e.g. a class or school name. |
 | Port | Defaults to 5000; the wizard suggests another if that one is taken. |
 
+Student usernames must be **3–32** characters: lowercase letters, numbers, `.`,
+`-`, or `_`.
+
 Without a desktop session (for example over SSH) the same questions are asked as
 text prompts. Everything is stored in `.env` and can be changed later by editing
 that file.
@@ -95,16 +98,19 @@ Production judging fails closed unless Windows AppContainer and Job Objects
 are available. Each process has CPU time, memory, process-count, output,
 workspace-size, workspace-file, and timeout limits. Submissions use absolute
 project-local command paths and `shell=False`; network access is not granted
-to AppContainer processes. Judge workers use at most half the logical CPUs and
-are hard-capped at four. Queue admission limits, per-user active limits, and a
-host CPU/memory guard prevent a classroom desktop from being overwhelmed.
+to AppContainer processes. Judge workers default to one per logical CPU.
+Sandbox jobs and worker processes run at below-normal priority so idle CPU can
+be used fully while the desktop and web server stay preemptible, and submissions
+cannot raise themselves to HIGH/REALTIME. Queue admission limits, per-user
+active limits, and a 1 GiB host memory reserve prevent the machine from
+crashing under load.
 
 ## Development and verification
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\ruff.exe check app scripts tests problem_bank
-.\.venv\Scripts\python.exe scripts\verify_windows.py --safe
+.\.venv\Scripts\python.exe scripts\verify_windows.py --safe --dev
 ```
 
 Import or repair the built-in catalog, then rehearse an isolated contest where

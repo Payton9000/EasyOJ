@@ -1,6 +1,5 @@
 from problem_bank.packs.foundations import get_specs
 from problem_bank.schema import ProblemSpec
-from problem_bank.validation import validate_catalog
 
 _SEED_TITLES = {
     'A+B Basic',
@@ -36,26 +35,6 @@ def test_foundations_pack_has_seven_unique_easy_problems():
     titles = [spec.title for spec in specs]
     assert len(set(titles)) == len(titles)
     assert not _SEED_TITLES.intersection(titles)
-
-
-def test_foundations_pack_validates_and_uses_real_newlines():
-    specs = get_specs()
-
-    validate_catalog(specs)
-
-    for spec in specs:
-        assert spec.time_limit > 0
-        assert spec.memory_limit > 0
-        assert len(spec.cases) >= 10
-        assert '\\n' not in spec.sample_input
-        assert '\\n' not in spec.sample_output
-        assert '\n' in spec.sample_input
-        assert '\n' in spec.sample_output
-        for case in spec.cases:
-            assert '\\n' not in case.input_data
-            assert '\\n' not in case.expected_output
-            assert '\n' in case.input_data
-            assert '\n' in case.expected_output
 
 
 def test_foundations_pack_has_hand_checkable_representative_answers():

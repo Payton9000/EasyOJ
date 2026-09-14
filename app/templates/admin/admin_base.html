@@ -9,7 +9,7 @@
         {#- Substring matching lit two entries at once: admin.contest_problems
             contains both "problem" and "contest". Map endpoints explicitly. -#}
         {% set nav_map = {
-            'admin.dashboard': 'dashboard',
+            'admin.dashboard': 'dashboard', 'admin.dashboard_index': 'dashboard',
             'admin.problems_list': 'problems', 'admin.create_problem': 'problems',
             'admin.edit_problem': 'problems', 'admin.problem_testcases': 'problems',
             'admin.upload_testcase': 'problems', 'admin.delete_testcase': 'problems',

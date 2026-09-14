@@ -92,7 +92,9 @@ class HostCapacityGuard:
             self._sampled_at = None
             return False, 'host metrics unavailable'
 
-        if snapshot.cpu_percent > self.max_cpu_percent:
+        # A 100% limit means "do not pause for CPU". Host freeze prevention is
+        # below-normal Job Object / worker priority, not leaving cores idle.
+        if self.max_cpu_percent < 100 and snapshot.cpu_percent > self.max_cpu_percent:
             return (
                 False,
                 f'host CPU usage is {snapshot.cpu_percent:.1f}% '

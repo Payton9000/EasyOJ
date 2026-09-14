@@ -35,6 +35,7 @@ force-single-line = true
 quote-style = "single"
 
 [tool.pytest.ini_options]
+python_files = ["test_*.py"]
 testpaths = ["tests"]
 addopts = "-q"
 norecursedirs = ["toolchain", ".venv"]

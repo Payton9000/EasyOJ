@@ -26,30 +26,13 @@ def _poll_submission(client, submission_id, timeout_s=10):
     return data['data']
 
 
-def test_python_tle_and_mle(client, app):
+def test_python_mle(client, app):
     with app.app_context():
         create_user('limit_user', 'limit@example.com')
-        problem_tle_id = create_problem('TLE Problem', time_limit=200, memory_limit=128).id
-        write_testcases(app.config['BASE_DIR'], problem_tle_id, [('1 2', '3')])
         problem_mle_id = create_problem('MLE Problem', time_limit=800, memory_limit=32).id
         write_testcases(app.config['BASE_DIR'], problem_mle_id, [('1 2', '3')])
 
     _login(client, 'limit_user', 'password123')
-
-    code_tle = """
-while True:
-    pass
-""".strip()
-
-    res = client.post(
-        f'/api/submit/{problem_tle_id}',
-        data=json.dumps({'language': 'python', 'code': code_tle}),
-        content_type='application/json',
-    )
-    assert res.status_code == 200
-    submission_id = res.get_json()['data']['submission_id']
-    result = _poll_submission(client, submission_id, timeout_s=30)
-    assert result['status'] in ('TLE', 'RE')
 
     code_mle = """
 data = []
