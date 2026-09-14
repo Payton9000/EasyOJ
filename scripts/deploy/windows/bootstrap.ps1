@@ -91,6 +91,5 @@ if (-not (Test-Path -LiteralPath $gpp -PathType Leaf) -or
     throw "Local C++/Java/Python judge runtime verification failed."
 }
 
-Write-Host "Initializing the local database..."
-Invoke-Native -FilePath $localPython -Arguments @(Join-Path $root "init_db.py")
-Write-Host "EasyOJ initialization complete." -ForegroundColor Green
+Write-Host "Local toolchain is ready." -ForegroundColor Green
+Write-Host "The launcher will open the setup wizard next (administrator account, site name, port)."

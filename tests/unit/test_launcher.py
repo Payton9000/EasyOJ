@@ -136,7 +136,9 @@ def test_start_does_not_treat_a_foreign_listener_as_this_install(monkeypatch):
     monkeypatch.setattr(launcher, '_port_in_use', lambda port: port == 5000)
     monkeypatch.setattr(launcher, '_is_this_checkout_listening', lambda port: False)
     called = {}
-    monkeypatch.setattr(launcher, 'ensure_environment', lambda: called.setdefault('env', True) or True)
+    monkeypatch.setattr(
+        launcher, 'ensure_environment', lambda: called.setdefault('env', True) or True
+    )
 
     def fake_configuration():
         ports['value'] = 5001
@@ -188,7 +190,15 @@ def test_start_exits_when_this_checkout_is_already_listening(monkeypatch, capsys
         raise AssertionError('must not run setup for an already-running checkout')
 
     monkeypatch.setattr(launcher, 'ensure_environment', must_not_setup)
-    monkeypatch.setattr(launcher, 'webbrowser', type('W', (), {'open': staticmethod(lambda url: None)}))
+    monkeypatch.setattr(
+        launcher, 'webbrowser', type('W', (), {'open': staticmethod(lambda url: None)})
+    )
 
     assert launcher.main(['start', '--no-browser']) == 0
     assert 'already running' in capsys.readouterr().out
+
+
+def test_toolchain_script_next_step_uses_this_project_root():
+    script = Path('scripts/deploy/windows/setup_toolchain.ps1').read_text(encoding='utf-8')
+    assert 'd:/EasyOJ/.venv' not in script
+    assert 'Join-Path $root' in script or '.venv\\Scripts\\python.exe' in script

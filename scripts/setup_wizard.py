@@ -253,9 +253,21 @@ def run_dialog(choices: SetupChoices) -> SetupChoices:
     return result['choices']
 
 
+def _can_use_dialog() -> bool:
+    """Tk only helps when a person can see and answer the window.
+
+    A piped or SSH session with no TTY would otherwise open a dialog nobody can
+    complete, then sit there until the launcher times out.
+    """
+    try:
+        return bool(sys.stdin.isatty() and sys.stdout.isatty())
+    except Exception:
+        return False
+
+
 def run_wizard(*, prefer_dialog: bool = True) -> SetupChoices:
     defaults = SetupChoices(port=suggest_port())
-    if prefer_dialog:
+    if prefer_dialog and _can_use_dialog():
         try:
             return run_dialog(defaults)
         except SetupCancelled:

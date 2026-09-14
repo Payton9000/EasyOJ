@@ -477,4 +477,5 @@ if (Test-Path -LiteralPath $tempDir) {
 
 Write-Host ""
 Write-Host "Next step:" -ForegroundColor Cyan
-Write-Host "  d:/EasyOJ/.venv/Scripts/python.exe run.py development"
+$nextPython = Join-Path $root ".venv\Scripts\python.exe"
+Write-Host "  $nextPython run.py development"

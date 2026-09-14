@@ -14,15 +14,13 @@ problem.
 Double-click **启动 EasyOJ.bat** in this folder.
 
 The first run installs everything the service needs: a project-local `.venv`, the
-project-local MinGW, JDK, and embedded Python submission runtime, a generated
-`SECRET_KEY`, and the database with its built-in problem bank. It does not modify
-the system `PATH` and does not require globally installed compilers. The first
-install speed-tests the official URLs plus several China mirrors, then downloads
-MinGW, JDK, and the Python runtime from the fastest source (SHA-256 verified,
-then the next-fastest if a checksum fails), about 400 MB in total. A very slow
-link can take more than an hour; if the first run is interrupted, double-click
-the file again and it resumes the toolchain. Later runs go straight to serving
-and print the classroom address.
+project-local MinGW, JDK, and embedded Python submission runtime, and a generated
+`SECRET_KEY`. It does not modify the system `PATH` and does not require globally
+installed compilers. The first install speed-tests the official URLs plus several
+China mirrors, then downloads MinGW, JDK, and the Python runtime from the fastest
+source (SHA-256 verified, then the next-fastest if a checksum fails), about 400 MB
+in total. A very slow link can take more than an hour; if the first run is
+interrupted, double-click the file again and it resumes the toolchain.
 
 A short setup window then asks for the things only you can decide:
 
@@ -34,6 +32,9 @@ A short setup window then asks for the things only you can decide:
 
 Student usernames must be **3–32** characters: lowercase letters, numbers, `.`,
 `-`, or `_`.
+
+The wizard then creates the database and imports the built-in problem bank.
+Later runs go straight to serving and print the classroom address.
 
 Without a desktop session (for example over SSH) the same questions are asked as
 text prompts. Everything is stored in `.env` and can be changed later by editing

@@ -280,7 +280,7 @@ def start_service(port: int, *, open_browser: bool = True) -> bool:
     say('=' * 58)
     say()
     say('The service keeps running after this window closes.')
-    say('To stop it, run "停止 EasyOJ.bat".')
+    say('To stop it, double-click 停止 EasyOJ.bat in this folder.')
     if open_browser:
         webbrowser.open(url)
     return True

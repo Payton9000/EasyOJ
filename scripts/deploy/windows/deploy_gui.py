@@ -212,6 +212,16 @@ def run_install(root: Path, log: Callable[[str], None]) -> None:
         log=log,
         timeout_seconds=10800,
     )
+    python_path = root / '.venv' / 'Scripts' / 'python.exe'
+    if not python_path.is_file():
+        raise DeploymentError('Project Python is missing after Initialize.')
+    log('Initializing the local database...')
+    run_step(
+        [str(python_path), str(root / 'init_db.py')],
+        cwd=root,
+        log=log,
+        timeout_seconds=900,
+    )
 
 
 def run_server(root: Path, log: Callable[[str], None]) -> None:

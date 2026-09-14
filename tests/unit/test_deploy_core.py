@@ -116,17 +116,35 @@ def test_run_install_allows_slow_toolchain_download(project_root, monkeypatch):
     bootstrap.parent.mkdir(parents=True)
     bootstrap.write_text('# stub', encoding='utf-8')
 
-    def fake_run_step(*args, **kwargs):
-        captured['timeout'] = kwargs.get('timeout_seconds')
+    def fake_run_step(command, **kwargs):
+        captured.setdefault('calls', []).append(
+            {'command': command, 'timeout': kwargs.get('timeout_seconds')}
+        )
 
     monkeypatch.setattr('scripts.deploy.windows.deploy_gui.run_step', fake_run_step)
-    monkeypatch.setattr('scripts.deploy.windows.deploy_gui.ensure_project_layout', lambda root: None)
+    monkeypatch.setattr(
+        'scripts.deploy.windows.deploy_gui.ensure_project_layout', lambda root: None
+    )
     monkeypatch.setattr('scripts.deploy.windows.deploy_gui.generate_env_file', lambda root: None)
+    python_path = project_root / '.venv' / 'Scripts' / 'python.exe'
+    python_path.parent.mkdir(parents=True)
+    python_path.write_bytes(b'python')
 
     from scripts.deploy.windows.deploy_gui import run_install
 
     run_install(project_root, lambda _: None)
-    assert captured['timeout'] >= 10800
+
+    def _joined(call):
+        return ' '.join(str(part) for part in call['command'])
+
+    timeouts = [call['timeout'] for call in captured['calls'] if 'bootstrap.ps1' in _joined(call)]
+    assert timeouts and timeouts[0] >= 10800
+    assert any('init_db.py' in _joined(call) for call in captured['calls'])
+
+
+def test_bootstrap_script_does_not_create_the_database_before_the_wizard():
+    script = Path('scripts/deploy/windows/bootstrap.ps1').read_text(encoding='utf-8')
+    assert 'init_db.py' not in script
 
 
 def test_run_server_rejects_duplicate_port(project_root, monkeypatch):

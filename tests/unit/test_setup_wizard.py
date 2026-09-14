@@ -85,6 +85,25 @@ def test_suggest_port_avoids_a_busy_default(monkeypatch):
     assert setup_wizard.suggest_port(5000) == 5001
 
 
+def test_wizard_uses_console_when_stdin_is_not_a_tty(monkeypatch):
+    monkeypatch.setattr(setup_wizard.sys.stdin, 'isatty', lambda: False)
+    monkeypatch.setattr(setup_wizard.sys.stdout, 'isatty', lambda: True)
+    called = {}
+
+    def fake_dialog(_choices):
+        called['dialog'] = True
+        raise AssertionError('dialog must not open without a TTY')
+
+    def fake_console(choices):
+        called['console'] = True
+        return choices
+
+    monkeypatch.setattr(setup_wizard, 'run_dialog', fake_dialog)
+    monkeypatch.setattr(setup_wizard, 'run_console', fake_console)
+    setup_wizard.run_wizard()
+    assert called == {'console': True}
+
+
 def test_console_flow_accepts_answers(monkeypatch):
     """Remote sessions without a desktop fall back to prompts."""
     answers = iter(
