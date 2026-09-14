@@ -110,6 +110,25 @@ def test_deployment_command_does_not_use_shell(tmp_path, monkeypatch):
     assert 'ready' in messages
 
 
+def test_run_install_allows_slow_toolchain_download(project_root, monkeypatch):
+    captured = {}
+    bootstrap = project_root / 'scripts' / 'deploy' / 'windows' / 'bootstrap.ps1'
+    bootstrap.parent.mkdir(parents=True)
+    bootstrap.write_text('# stub', encoding='utf-8')
+
+    def fake_run_step(*args, **kwargs):
+        captured['timeout'] = kwargs.get('timeout_seconds')
+
+    monkeypatch.setattr('scripts.deploy.windows.deploy_gui.run_step', fake_run_step)
+    monkeypatch.setattr('scripts.deploy.windows.deploy_gui.ensure_project_layout', lambda root: None)
+    monkeypatch.setattr('scripts.deploy.windows.deploy_gui.generate_env_file', lambda root: None)
+
+    from scripts.deploy.windows.deploy_gui import run_install
+
+    run_install(project_root, lambda _: None)
+    assert captured['timeout'] >= 10800
+
+
 def test_run_server_rejects_duplicate_port(project_root, monkeypatch):
     python_path = project_root / '.venv' / 'Scripts' / 'python.exe'
     python_path.parent.mkdir(parents=True)

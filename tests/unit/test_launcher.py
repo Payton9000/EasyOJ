@@ -81,6 +81,45 @@ def test_missing_python_gives_install_instructions(tmp_path, monkeypatch, capsys
     assert 'Add python.exe to PATH' in output
 
 
+def test_ensure_environment_uses_a_long_bootstrap_timeout(tmp_path, monkeypatch):
+    """GitHub-sized compiler zips exceed one hour on a ~40KB/s classroom link."""
+    monkeypatch.setattr(launcher, 'VENV_PYTHON', tmp_path / 'absent' / 'python.exe')
+    monkeypatch.setattr(launcher, 'BOOTSTRAP', tmp_path / 'bootstrap.ps1')
+    (tmp_path / 'bootstrap.ps1').write_text('# stub', encoding='utf-8')
+    monkeypatch.setattr(launcher, '_system_python', lambda: ['py', '-3'])
+    captured = {}
+
+    def fake_run(command, *, timeout=3600, env=None):
+        captured['timeout'] = timeout
+        captured['command'] = command
+        return 1
+
+    monkeypatch.setattr(launcher, '_run', fake_run)
+    assert launcher.ensure_environment() is False
+    assert captured['timeout'] >= 10800
+
+
+def test_ensure_environment_reruns_bootstrap_when_venv_exists_without_compilers(
+    tmp_path, monkeypatch
+):
+    venv_python = tmp_path / '.venv' / 'Scripts' / 'python.exe'
+    venv_python.parent.mkdir(parents=True)
+    venv_python.write_bytes(b'python')
+    monkeypatch.setattr(launcher, 'PROJECT_ROOT', tmp_path)
+    monkeypatch.setattr(launcher, 'VENV_PYTHON', venv_python)
+    monkeypatch.setattr(launcher, 'BOOTSTRAP', tmp_path / 'bootstrap.ps1')
+    (tmp_path / 'bootstrap.ps1').write_text('# stub', encoding='utf-8')
+    captured = {}
+
+    def fake_run(command, *, timeout=3600, env=None):
+        captured['called'] = True
+        return 1
+
+    monkeypatch.setattr(launcher, '_run', fake_run)
+    assert launcher.ensure_environment() is False
+    assert captured.get('called') is True
+
+
 def test_stop_reports_when_nothing_is_running(capsys):
     with socket.socket() as probe:
         probe.bind(('127.0.0.1', 0))

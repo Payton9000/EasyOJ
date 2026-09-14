@@ -210,6 +210,7 @@ def run_install(root: Path, log: Callable[[str], None]) -> None:
         ],
         cwd=root,
         log=log,
+        timeout_seconds=10800,
     )
 
 

@@ -10,10 +10,10 @@ On a school-LAN Windows PC, use the graphical assistant:
 
 Choose **Initialize / repair** on first use. It creates `.venv` in the project
 folder, writes `.env`, installs Python dependencies, downloads MinGW/JDK into
-`toolchain/`, and initializes the database. It does not change the system PATH
-and does not install compilers globally. If the project has no Python yet, use
-the system Python once to create `.venv`; afterwards the project interpreter
-runs the service.
+`toolchain/` (China mirrors first, official URLs as fallback), and initializes
+the database. It does not change the system PATH and does not install compilers
+globally. If the project has no Python yet, use the system Python once to create
+`.venv`; afterwards the project interpreter runs the service.
 
 Start the service:
 

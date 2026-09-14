@@ -16,9 +16,12 @@ Double-click **启动 EasyOJ.bat** in this folder.
 The first run installs everything the service needs: a project-local `.venv`, the
 project-local MinGW, JDK, and embedded Python submission runtime, a generated
 `SECRET_KEY`, and the database with its built-in problem bank. It does not modify
-the system `PATH` and does not require globally installed compilers. Expect this
-to take a while on a slow connection; later runs go straight to serving and print
-the classroom address.
+the system `PATH` and does not require globally installed compilers. The first
+install tries China mirrors for MinGW, JDK, and the Python runtime (SHA-256
+verified, then official URLs as fallback), about 400 MB in total. A very slow
+link can take more than an hour; if the first run is interrupted, double-click
+the file again and it resumes the toolchain. Later runs go straight to serving
+and print the classroom address.
 
 A short setup window then asks for the things only you can decide:
 

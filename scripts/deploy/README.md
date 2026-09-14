@@ -8,7 +8,7 @@
 .\.venv\Scripts\python.exe scripts/deploy/windows/deploy_gui.py
 ```
 
-第一次使用请选择 “Initialize / repair”。它会在项目目录内创建 `.venv`、生成 `.env`、安装 Python 依赖、下载 MinGW/JDK 到 `toolchain/` 并初始化数据库；不会修改系统 PATH，也不会把编译器安装到全局目录。若项目未自带 Python，可仅使用系统 Python 一次创建 `.venv`，之后运行时使用项目内解释器。
+第一次使用请选择 “Initialize / repair”。它会在项目目录内创建 `.venv`、生成 `.env`、安装 Python 依赖、下载 MinGW/JDK 到 `toolchain/` 并初始化数据库；不会修改系统 PATH，也不会把编译器安装到全局目录。工具链默认先国内镜像、失败再官方源。若项目未自带 Python，可仅使用系统 Python 一次创建 `.venv`，之后运行时使用项目内解释器。
 
 启动服务：
 

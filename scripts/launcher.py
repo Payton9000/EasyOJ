@@ -29,6 +29,8 @@ VENV_PYTHON = PROJECT_ROOT / '.venv' / 'Scripts' / 'python.exe'
 VENV_PYTHONW = PROJECT_ROOT / '.venv' / 'Scripts' / 'pythonw.exe'
 SERVICE_SCRIPT = PROJECT_ROOT / 'scripts' / 'start_service.py'
 BOOTSTRAP = PROJECT_ROOT / 'scripts' / 'deploy' / 'windows' / 'bootstrap.ps1'
+# MinGW+JDK+embed Python is ~400MB. A 40KB/s classroom link needs more than 1 hour.
+TOOLCHAIN_BOOTSTRAP_TIMEOUT_SECONDS = 10800
 
 
 def say(message: str = '') -> None:
@@ -87,6 +89,17 @@ def _system_python() -> list[str] | None:
     return None
 
 
+def _compilers_ready() -> bool:
+    """True when the judge compilers sit inside this project tree."""
+    mingw = PROJECT_ROOT / 'toolchain' / 'mingw64' / 'bin' / 'g++.exe'
+    runtime = PROJECT_ROOT / 'runtime' / 'python' / 'python.exe'
+    jdk_root = PROJECT_ROOT / 'toolchain' / 'jdk'
+    javac = jdk_root / 'bin' / 'javac.exe'
+    if not javac.is_file() and jdk_root.is_dir():
+        javac = next(jdk_root.rglob('javac.exe'), javac)
+    return mingw.is_file() and runtime.is_file() and javac.is_file()
+
+
 def _run(command: list[str], *, timeout: int = 3600, env: dict[str, str] | None = None) -> int:
     say('> ' + subprocess.list2cmdline(command))
     try:
@@ -103,7 +116,7 @@ def _run(command: list[str], *, timeout: int = 3600, env: dict[str, str] | None 
 
 def ensure_environment() -> bool:
     """Create .venv, install dependencies, and prepare data/.env on first run."""
-    if VENV_PYTHON.is_file():
+    if VENV_PYTHON.is_file() and _compilers_ready():
         return True
 
     say('First run: preparing EasyOJ. This downloads the compilers and may take')
@@ -112,12 +125,13 @@ def ensure_environment() -> bool:
     if not BOOTSTRAP.is_file():
         say(f'Setup script is missing: {BOOTSTRAP}')
         return False
-    python = _system_python()
-    if python is None:
-        say('Python 3.10 or newer is required and was not found.')
-        say('Install it from https://www.python.org/downloads/ and tick')
-        say('"Add python.exe to PATH", then run this file again.')
-        return False
+    if not VENV_PYTHON.is_file():
+        python = _system_python()
+        if python is None:
+            say('Python 3.10 or newer is required and was not found.')
+            say('Install it from https://www.python.org/downloads/ and tick')
+            say('"Add python.exe to PATH", then run this file again.')
+            return False
 
     code = _run(
         [
@@ -129,7 +143,8 @@ def ensure_environment() -> bool:
             str(BOOTSTRAP),
             '-ProjectRoot',
             str(PROJECT_ROOT),
-        ]
+        ],
+        timeout=TOOLCHAIN_BOOTSTRAP_TIMEOUT_SECONDS,
     )
     if code != 0 or not VENV_PYTHON.is_file():
         say()

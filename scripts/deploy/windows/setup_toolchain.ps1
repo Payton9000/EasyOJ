@@ -47,12 +47,22 @@ function Build-UrlCandidates {
         [switch]$ChinaMirror
     )
 
+    # Classroom LANs in China usually cannot finish GitHub in the launcher timeout.
+    # Always try public China reverse-proxies first, then the official URL.
     $urls = New-Object System.Collections.Generic.List[string]
+    $urls.Add("https://ghfast.top/$PrimaryUrl")
+    $urls.Add("https://ghproxy.cn/$PrimaryUrl")
     $urls.Add($PrimaryUrl)
-    if ($ChinaMirror) {
-        $urls.Add("https://ghfast.top/$PrimaryUrl")
-        $urls.Add("https://ghproxy.cn/$PrimaryUrl")
-    }
+    return $urls
+}
+
+function Build-PythonUrlCandidates {
+    param([string]$PrimaryUrl)
+
+    $urls = New-Object System.Collections.Generic.List[string]
+    $urls.Add("https://mirrors.huaweicloud.com/python/3.11.9/python-3.11.9-embed-amd64.zip")
+    $urls.Add("https://cdn.npmmirror.com/binaries/python/3.11.9/python-3.11.9-embed-amd64.zip")
+    $urls.Add($PrimaryUrl)
     return $urls
 }
 
@@ -78,13 +88,40 @@ function Download-VerifiedFile {
         [string]$ExpectedHash
     )
 
+    $curl = Get-Command "curl.exe" -ErrorAction SilentlyContinue
     foreach ($url in $Urls) {
         try {
             Write-Host "Downloading: $url"
             if (Test-Path -LiteralPath $OutFile) {
-                Remove-Item -Force -LiteralPath $OutFile
+                try {
+                    Assert-Sha256 -Path $OutFile -ExpectedHash $ExpectedHash
+                    Write-Host "Verified SHA-256: $ExpectedHash"
+                    return $true
+                } catch {
+                    # Keep a partial file so curl.exe can resume with -C -.
+                }
             }
-            Invoke-WebRequest -Uri $url -OutFile $OutFile -UseBasicParsing
+            if ($curl) {
+                $curlArgs = @(
+                    "-L",
+                    "--fail",
+                    "--retry", "2",
+                    "-C", "-",
+                    "--progress-bar",
+                    "--connect-timeout", "30",
+                    "-o", $OutFile,
+                    $url
+                )
+                & curl.exe @curlArgs
+                if ($LASTEXITCODE -ne 0) {
+                    throw "curl.exe exited $LASTEXITCODE"
+                }
+            } else {
+                if (Test-Path -LiteralPath $OutFile) {
+                    Remove-Item -Force -LiteralPath $OutFile
+                }
+                Invoke-WebRequest -Uri $url -OutFile $OutFile -UseBasicParsing
+            }
             Assert-Sha256 -Path $OutFile -ExpectedHash $ExpectedHash
             Write-Host "Verified SHA-256: $ExpectedHash"
             return $true
@@ -200,7 +237,8 @@ $pythonExisting = Join-Path $runtimeOut "python.exe"
 if ((Test-Path -LiteralPath $pythonExisting -PathType Leaf) -and -not $Force) {
     Write-Host "Embedded Python already exists at $runtimeOut (use -Force to reinstall)."
 } else {
-    Download-VerifiedFile -Urls @($PythonUrl) -OutFile $pythonZip -ExpectedHash $PythonSha256
+    $pythonUrls = Build-PythonUrlCandidates -PrimaryUrl $PythonUrl
+    Download-VerifiedFile -Urls $pythonUrls -OutFile $pythonZip -ExpectedHash $PythonSha256
     Expand-Zip -ZipPath $pythonZip -Destination $runtimeOut
 }
 
