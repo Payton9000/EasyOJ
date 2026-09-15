@@ -36,13 +36,25 @@ Student usernames must be **3–32** characters: lowercase letters, numbers, `.`
 The wizard then creates the database and imports the built-in problem bank.
 Later runs go straight to serving and print the classroom address.
 
-Without a desktop session (for example over SSH) the same questions are asked as
-text prompts. Everything is stored in `.env` and can be changed later by editing
-that file.
+Without a desktop session (for example over SSH), run this from the project folder:
+
+```powershell
+py -3 scripts\launcher.py start
+```
+
+The same questions are asked as text prompts. Everything is stored in `.env` and
+can be changed later by editing that file.
 
 The service keeps running after the window closes. Double-click
 **停止 EasyOJ.bat** to stop it. Only Python 3.10 or newer needs to be present
 beforehand; the launcher explains how to install it if it is missing.
+
+After a classroom install, check the local toolchain and sandbox (do not add
+`--dev`; that profile has no Ruff or pytest):
+
+```powershell
+.\.venv\Scripts\python.exe scripts\verify_windows.py --safe
+```
 
 ## Deployment assistant (optional)
 
@@ -52,12 +64,15 @@ For auto-start, backups, and a notification-area icon:
 .\.venv\Scripts\python.exe scripts\deploy\windows\deploy_gui.py
 ```
 
-The same setup can be re-run from there with **Initialize / repair**.
+The same setup can be re-run from there with **Initialize / repair**. That path
+does not open the setup wizard; it prints a one-time temporary password for the
+`admin` account in the deployment log. Save it and change it at first login.
+First-run via **启动 EasyOJ.bat** uses the password you typed in the wizard and
+does not print a temporary password.
 
 Open `http://<host-ip>:5000` from the classroom network. Restrict the Windows
 Firewall rule to the school subnet; do not expose this profile to the public
-Internet. Initialization prints a one-time temporary password for the `admin`
-account; save it securely and change it at first login.
+Internet.
 
 ## Running unattended
 

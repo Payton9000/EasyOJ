@@ -37,7 +37,7 @@ CodeMirror 编辑器已经编译在 `app/static/vendor/codemirror/`，部署不�
 ## 备份与恢复
 
 先停服务，把 `data/database.db` 和 `data/problems/` 拷到离线备份，再启动。`.env` 含会话密钥，不要公开。
-初始化会在部署日志里打印 `admin` 的一次性临时密码，请保存并在首次登录时修改。需要受控的初始密码时可先设置 `EASYOJ_INITIAL_ADMIN_PASSWORD`，首次登录仍必须改密。之后用管理后台重置流程发放临时密码。再次初始化还会替换仍然有效的旧种子密码 `admin123`。重置页标记为 `no-store`，并强制对方下次改密。
+双击 **启动 EasyOJ.bat** 的首次安装使用向导里设定的管理员密码。部署助手的 **Initialize / repair** 才会在部署日志里打印 `admin` 的一次性临时密码，请保存并在首次登录时修改。需要受控的初始密码时可先设置 `EASYOJ_INITIAL_ADMIN_PASSWORD`，首次登录仍必须改密。之后用管理后台重置流程发放临时密码。再次初始化还会替换仍然有效的旧种子密码 `admin123`。重置页标记为 `no-store`，并强制对方下次改密。
 
 ## 安全验证
 

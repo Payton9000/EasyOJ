@@ -82,13 +82,15 @@ to one concurrent process by default and five seconds.
 
 Stop the server, copy `data/database.db` and `data/problems/` to an offline
 backup, then restart. Keep `.env` private; it contains the session secret.
-Initialization prints a one-time temporary password for `admin` in the GUI
-deployment log. Save it securely, log in, and change it immediately. You may
-set `EASYOJ_INITIAL_ADMIN_PASSWORD` before initialization when a controlled
-bootstrap password is required; it must still be changed at first login. Use
-the admin reset flow for later temporary passwords. Re-running initialization
-also replaces the old known `admin123` seed if it is still active. Reset pages
-are marked `no-store` and force the recipient to change the password.
+First-run via **启动 EasyOJ.bat** uses the administrator password chosen in the
+wizard. **Initialize / repair** in the deployment assistant prints a one-time
+temporary password for `admin` in the GUI deployment log. Save it securely, log
+in, and change it immediately. You may set `EASYOJ_INITIAL_ADMIN_PASSWORD`
+before initialization when a controlled bootstrap password is required; it must
+still be changed at first login. Use the admin reset flow for later temporary
+passwords. Re-running initialization also replaces the old known `admin123` seed
+if it is still active. Reset pages are marked `no-store` and force the recipient
+to change the password.
 
 ## Safe verification
 
