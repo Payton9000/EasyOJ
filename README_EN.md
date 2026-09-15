@@ -23,7 +23,11 @@ in total. A very slow link can take more than an hour; if the first run is
 interrupted, double-click the file again and it resumes the toolchain.
 
 A short setup page then opens in your browser on this computer only
-(`127.0.0.1`). Fill in the fields **in this order**:
+(`127.0.0.1`). The language button is in the top-right corner:
+
+<img src="docs/images/setup-en.png" alt="Loopback first-time setup page" width="720">
+
+Fill in the fields **in this order**:
 
 | # | Setting | Notes |
 | --- | --- | --- |
@@ -37,9 +41,30 @@ A short setup page then opens in your browser on this computer only
 Student usernames must be **3–32** characters: lowercase letters, numbers, `.`,
 `-`, or `_`.
 
-The setup page then creates the database and imports the built-in problem bank.
+**Finish setup** creates the database and imports the built-in problem bank.
 That import rewrites tracked files under `data/problems/`; leave those changes
-uncommitted. Later runs go straight to serving and print the classroom address.
+uncommitted.
+
+<img src="docs/images/setup-done.png" alt="Setup saved" width="720">
+
+Later runs go straight to serving and print the classroom address. Sign in with
+the account you just chose. The header shows the site name from the form (the
+name in these pictures is only an example):
+
+<img src="docs/images/login.png" alt="Sign-in page" width="720">
+
+The administrator dashboard lists the catalog (30 practice problems plus sample
+A+B):
+
+<img src="docs/images/admin-dashboard.png" alt="Administrator dashboard" width="720">
+
+Check judging with A+B: a correct program should be Accepted; `print(0)` should
+be Wrong answer.
+
+<p>
+<img src="docs/images/submission-ac.png" alt="A+B accepted" width="48%">
+<img src="docs/images/submission-wa.png" alt="A+B wrong answer" width="48%">
+</p>
 
 Without a desktop session (for example over SSH), run this from the project folder:
 

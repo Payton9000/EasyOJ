@@ -122,6 +122,29 @@ def test_readme_lists_setup_fields_in_form_order():
         assert 'Initialize / repair' not in text
 
 
+def test_readme_screenshots_are_checked_in():
+    """GitHub will show broken images if these files are missing from the tree."""
+    names = (
+        'setup-en.png',
+        'setup-zh.png',
+        'setup-done.png',
+        'login.png',
+        'admin-dashboard.png',
+        'submission-ac.png',
+        'submission-wa.png',
+    )
+    images = REPO_ROOT / 'docs' / 'images'
+    for name in names:
+        assert (images / name).is_file(), name
+    chinese = (REPO_ROOT / 'README.md').read_text(encoding='utf-8')
+    english = (REPO_ROOT / 'README_EN.md').read_text(encoding='utf-8')
+    assert 'docs/images/setup-zh.png' in chinese
+    assert 'docs/images/setup-en.png' in english
+    for name in ('setup-done.png', 'login.png', 'admin-dashboard.png', 'submission-ac.png'):
+        assert f'docs/images/{name}' in chinese
+        assert f'docs/images/{name}' in english
+
+
 def test_site_name_reaches_the_page_header():
     """A configured name must actually appear, not just sit in .env."""
     from app.config import Config
