@@ -48,6 +48,14 @@ DEFAULT_PORT = 5000
 DEFAULT_SITE_NAME = 'EasyOJ'
 DEFAULT_USERNAME = 'admin'
 DEFAULT_EMAIL = 'admin@oj.local'
+CONSOLE_SETUP_STEPS = (
+    'Administrator username',
+    'Administrator email',
+    'Site name shown to students',
+    'Port',
+    'Administrator password (at least 8 characters)',
+    'Type the password again',
+)
 
 
 @dataclass
@@ -149,6 +157,9 @@ def run_console(choices: SetupChoices) -> SetupChoices:
     print()
     print('  Answer a few questions and EasyOJ will be ready to use.')
     print('  Press Enter to accept the value in brackets.')
+    print('  Questions are asked in this order:')
+    for index, label in enumerate(CONSOLE_SETUP_STEPS, start=1):
+        print(f'    {index}. {label}')
     print()
 
     while True:

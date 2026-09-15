@@ -7,7 +7,7 @@ assignments, classroom contests, and local practice. The interface follows a
 restrained LeetCode-style workspace, supports Chinese and English UI text, and
 lets signed-in users run C++, Java, or Python directly from a problem page.
 Initialization installs a reviewed 30-problem catalog with 10 test points per
-problem.
+problem, plus a sample A+B problem.
 
 ## Quick start
 
@@ -22,14 +22,18 @@ source (SHA-256 verified, then the next-fastest if a checksum fails), about 400 
 in total. A very slow link can take more than an hour; if the first run is
 interrupted, double-click the file again and it resumes the toolchain.
 
-A short setup window then asks for the things only you can decide:
+A short setup window then asks for the things only you can decide, **in this
+order** (the no-desktop text prompts are the same; press Enter to keep a
+bracketed default):
 
-| Setting | Notes |
-| --- | --- |
-| Administrator username and password | How you sign in. Choose it yourself so it is never printed or lost. |
-| Administrator email | Defaults to `admin@oj.local`; stored as that account's contact address. |
-| Site name | Shown in the header and page titles, e.g. a class or school name. |
-| Port | Defaults to 5000; the wizard suggests another if that one is taken. |
+| # | Setting | Notes |
+| --- | --- | --- |
+| 1 | Administrator username | How you sign in. Defaults to `admin`. |
+| 2 | Administrator email | Defaults to `admin@oj.local`. |
+| 3 | Site name | Shown in the header and page titles, e.g. a class or school name. |
+| 4 | Port | Defaults to 5000; the wizard suggests another if that one is taken. |
+| 5 | Administrator password | At least 8 characters. Choose it yourself so it is never printed or lost. |
+| 6 | Type the password again | The two values must match. |
 
 Student usernames must be **3–32** characters: lowercase letters, numbers, `.`,
 `-`, or `_`.

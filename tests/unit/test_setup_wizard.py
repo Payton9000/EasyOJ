@@ -128,6 +128,39 @@ def test_console_flow_accepts_answers(monkeypatch):
     assert result.site_name == 'Class 3 OJ'
 
 
+def test_console_wizard_announces_the_six_questions_in_order(monkeypatch, capsys):
+    answers = iter(
+        ['teacher.li', 'li@school.example', 'Class 3 OJ', '5123', 'ClassRoom2026', 'ClassRoom2026']
+    )
+    monkeypatch.setattr('builtins.input', lambda _prompt='': next(answers))
+    monkeypatch.setattr(setup_wizard, 'port_is_free', lambda port: True)
+    setup_wizard.run_console(setup_wizard.SetupChoices())
+    output = capsys.readouterr().out
+    positions = [output.index(label) for label in setup_wizard.CONSOLE_SETUP_STEPS]
+    assert positions == sorted(positions)
+
+
+def test_readme_lists_wizard_questions_in_console_order():
+    chinese = (REPO_ROOT / 'README.md').read_text(encoding='utf-8')
+    english = (REPO_ROOT / 'README_EN.md').read_text(encoding='utf-8')
+    for text in (chinese, english):
+        assert 'Type the password again' in text or '再输入一次密码' in text
+        user = (
+            text.index('管理员用户名')
+            if '管理员用户名' in text
+            else text.index('Administrator username')
+        )
+        email = (
+            text.index('管理员邮箱') if '管理员邮箱' in text else text.index('Administrator email')
+        )
+        confirm = (
+            text.index('再输入一次密码')
+            if '再输入一次密码' in text
+            else text.index('Type the password again')
+        )
+        assert user < email < confirm
+
+
 def test_console_flow_cancels_cleanly(monkeypatch):
     def interrupt(_prompt=''):
         raise KeyboardInterrupt
