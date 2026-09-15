@@ -27,6 +27,7 @@ A short setup window then asks for the things only you can decide:
 | Setting | Notes |
 | --- | --- |
 | Administrator username and password | How you sign in. Choose it yourself so it is never printed or lost. |
+| Administrator email | Defaults to `admin@oj.local`; stored as that account's contact address. |
 | Site name | Shown in the header and page titles, e.g. a class or school name. |
 | Port | Defaults to 5000; the wizard suggests another if that one is taken. |
 
@@ -34,7 +35,8 @@ Student usernames must be **3–32** characters: lowercase letters, numbers, `.`
 `-`, or `_`.
 
 The wizard then creates the database and imports the built-in problem bank.
-Later runs go straight to serving and print the classroom address.
+That import rewrites tracked files under `data/problems/`; leave those changes
+uncommitted. Later runs go straight to serving and print the classroom address.
 
 Without a desktop session (for example over SSH), run this from the project folder:
 
