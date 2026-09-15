@@ -25,6 +25,7 @@ def test_init_db_installs_builtin_problem_bank_without_starting_workers(tmp_path
 
     monkeypatch.setattr(module, 'create_app', lambda *args, **kwargs: app)
     monkeypatch.setenv('EASYOJ_INITIAL_ADMIN_PASSWORD', 'InitStrong!2345')
+    monkeypatch.delenv('EASYOJ_INITIAL_ADMIN_PASSWORD_CONFIRMED', raising=False)
 
     module.init_db()
 

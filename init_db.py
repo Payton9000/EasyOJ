@@ -26,9 +26,9 @@ def _temporary_admin_password():
 
 
 def _admin_identity():
-    """Administrator name/email, taken from the setup wizard when it ran.
+    """Administrator name/email, taken from the setup page when it ran.
 
-    The wizard passes these through the environment so the operator's own chosen
+    The setup page passes these through the environment so the operator's own chosen
     account is created instead of a fixed `admin`.
     """
     username = os.environ.get('EASYOJ_INITIAL_ADMIN_USERNAME', 'admin')
@@ -50,7 +50,7 @@ def init_db():
     app = create_app('development', start_judge_engine=False)
     admin_username, admin_email = _admin_identity()
     password_was_supplied = bool(os.environ.get('EASYOJ_INITIAL_ADMIN_PASSWORD'))
-    # Only a password the operator typed into the wizard moments ago is exempt from
+    # Only a password the operator typed into the setup page moments ago is exempt from
     # the forced change. A password merely passed in through the environment may
     # come from a script or shell history, so that case still forces a change.
     password_chosen_interactively = os.environ.get('EASYOJ_INITIAL_ADMIN_PASSWORD_CONFIRMED') == '1'

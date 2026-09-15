@@ -10,13 +10,13 @@ OJ administration, and do not expose port 5000 to the public Internet.
 ## First installation
 
 The classroom default is to double-click **启动 EasyOJ.bat** in the project
-root. The first run prepares the toolchain, opens the setup wizard
+root. The first run prepares the toolchain, opens a loopback setup page
 (administrator username, password, email, site name, and port), and only then
 creates the database. Toolchain downloads speed-test the official URLs and
 several China mirrors, then use the fastest source (falling back in speed order
 if a checksum fails). Interrupted transfers resume instead of restarting; files
 that are not real ZIP archives are discarded. If port 5000 is already taken by
-another program, the wizard suggests a different port and the launcher does not
+another program, the setup page asks for a different port and the launcher does not
 treat someone else's instance as this install. The launcher waits up to three
 hours. A later start resumes missing compilers instead of skipping because
 `.venv` already exists.
@@ -27,7 +27,7 @@ submissions, MinGW, and JDK are then kept under the project directory. The
 `.venv` runs the web application; it is not used as the untrusted submission
 interpreter.
 
-For auto-start, the tray icon, and a graphical Initialize, open the deployment
+For auto-start, the tray icon, and toolchain repair, open the deployment
 assistant:
 
 ```powershell
@@ -35,12 +35,11 @@ python -m venv .venv
 .\.venv\Scripts\python.exe scripts\deploy\windows\deploy_gui.py
 ```
 
-Choose `Initialize / repair`. The assistant creates `.env`, `data/`, the
-project-local virtual environment dependencies, and the local compiler
-toolchain. It is safe to run again; it does not change the system PATH. The
-older `setup_toolchain.ps1` remains available for toolchain/runtime-only repair.
-Initialization also installs the built-in 30-problem catalog and its 300 test
-points; repeating it updates the catalog without duplicating problems.
+Choose `Repair toolchain` to recreate `.venv` and compilers only. It does not
+create an administrator. First-run accounts come from **启动 EasyOJ.bat** and
+the browser setup page. It is safe to run repair again; it does not change the
+system PATH. The older `setup_toolchain.ps1` remains available for
+toolchain/runtime-only repair.
 Student usernames must be 3–32 characters: lowercase letters, numbers, `.`,
 `-`, or `_`. The register form states this next to the username field.
 The CodeMirror editor is already compiled under
@@ -87,15 +86,10 @@ to one concurrent process by default and five seconds.
 
 Stop the server, copy `data/database.db` and `data/problems/` to an offline
 backup, then restart. Keep `.env` private; it contains the session secret.
-First-run via **启动 EasyOJ.bat** uses the administrator password chosen in the
-wizard. **Initialize / repair** in the deployment assistant prints a one-time
-temporary password for `admin` in the GUI deployment log. Save it securely, log
-in, and change it immediately. You may set `EASYOJ_INITIAL_ADMIN_PASSWORD`
-before initialization when a controlled bootstrap password is required; it must
-still be changed at first login. Use the admin reset flow for later temporary
-passwords. Re-running initialization also replaces the old known `admin123` seed
-if it is still active. Reset pages are marked `no-store` and force the recipient
-to change the password.
+First-run via **启动 EasyOJ.bat** uses the administrator password chosen on the
+setup page. The deployment assistant no longer prints a temporary admin
+password. Use the admin reset flow for later temporary passwords. Reset pages
+are marked `no-store` and force the recipient to change the password.
 
 ## Safe verification
 

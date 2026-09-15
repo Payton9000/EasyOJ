@@ -190,7 +190,7 @@ def run_step(
 
 
 def run_install(root: Path, log: Callable[[str], None]) -> None:
-    """Run the project-local bootstrap and initialize the database."""
+    """Repair the project-local toolchain. Does not create the administrator."""
     root = resolve_project_root(root)
     ensure_project_layout(root)
     generate_env_file(root)
@@ -214,21 +214,19 @@ def run_install(root: Path, log: Callable[[str], None]) -> None:
     )
     python_path = root / '.venv' / 'Scripts' / 'python.exe'
     if not python_path.is_file():
-        raise DeploymentError('Project Python is missing after Initialize.')
-    log('Initializing the local database...')
-    run_step(
-        [str(python_path), str(root / 'init_db.py')],
-        cwd=root,
-        log=log,
-        timeout_seconds=900,
-    )
+        raise DeploymentError('Project Python is missing after toolchain repair.')
+    log('Toolchain ready. First-time accounts are created from 启动 EasyOJ.bat.')
 
 
 def run_server(root: Path, log: Callable[[str], None]) -> None:
     root = resolve_project_root(root)
     python_path = root / '.venv' / 'Scripts' / 'python.exe'
     if not python_path.is_file():
-        raise DeploymentError('Project Python is missing. Run Initialize first.')
+        raise DeploymentError('Project Python is missing. Double-click 启动 EasyOJ.bat first.')
+    if not (root / 'data' / 'database.db').is_file():
+        raise DeploymentError(
+            'EasyOJ is not set up yet. Double-click 启动 EasyOJ.bat and finish the setup page.'
+        )
     port = _configured_port(root)
     if _port_is_open(port):
         raise DeploymentError(f'Port {port} is already in use; the server may already be running.')
@@ -273,7 +271,7 @@ def run_backup(root: Path, log: Callable[[str], None]) -> None:
     root = resolve_project_root(root)
     python_path = root / '.venv' / 'Scripts' / 'python.exe'
     if not python_path.is_file():
-        raise DeploymentError('Project Python is missing. Run Initialize first.')
+        raise DeploymentError('Project Python is missing. Double-click 启动 EasyOJ.bat first.')
     script = root / 'scripts' / 'backup_now.py'
     if not script.is_file():
         raise DeploymentError(f'Missing backup script: {script}')
@@ -453,7 +451,7 @@ def create_app(root: Path) -> None:
             text='Remove auto-start' if currently_on else 'Start with Windows'
         )
 
-    tk.Button(buttons, text='Initialize / repair', command=lambda: start(run_install)).pack(
+    tk.Button(buttons, text='Repair toolchain', command=lambda: start(run_install)).pack(
         side='left'
     )
     tk.Button(buttons, text='Start server', command=lambda: start(start_server_and_track)).pack(
@@ -471,7 +469,8 @@ def create_app(root: Path) -> None:
     tray.start()
     refresh_autostart_label()
     sync_autostart_button()
-    append('Choose Initialize / repair before the first launch.')
+    append('First-time setup is the browser page from 启动 EasyOJ.bat.')
+    append('Use Repair toolchain only if compilers need to be downloaded again.')
     if not tray.available:
         append('Notification-area icon is unavailable; Minimise will use the taskbar.')
     window.after(150, poll_events)

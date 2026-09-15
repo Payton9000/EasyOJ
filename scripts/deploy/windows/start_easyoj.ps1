@@ -16,7 +16,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $root "run.py") -PathType Leaf) -or
 
 $python = Join-Path $root ".venv\Scripts\python.exe"
 if (-not (Test-Path -LiteralPath $python -PathType Leaf)) {
-    throw "Project Python is missing. Run deploy_gui.py and choose Initialize / repair first."
+    throw "Project Python is missing. Double-click 启动 EasyOJ.bat first."
 }
 
 & $python (Join-Path $root "run.py") production

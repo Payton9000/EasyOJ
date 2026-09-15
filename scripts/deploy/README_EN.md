@@ -8,10 +8,9 @@ On a school-LAN Windows PC, use the graphical assistant:
 .\.venv\Scripts\python.exe scripts/deploy/windows/deploy_gui.py
 ```
 
-Choose **Initialize / repair** on first use. It creates `.venv` in the project
-folder, writes `.env`, installs Python dependencies, downloads MinGW/JDK into
-`toolchain/` (speed-tests official URLs and China mirrors, then uses the
-fastest), and initializes the database. It does not change the system PATH
+Double-click **启动 EasyOJ.bat** for first-time setup in the browser. Use
+**Repair toolchain** in the assistant only to recreate `.venv` and compilers.
+It does not create an administrator. It does not change the system PATH
 and does not install compilers globally. If the project has no Python yet, use
 the system Python once to create `.venv`; afterwards the project interpreter
 runs the service.

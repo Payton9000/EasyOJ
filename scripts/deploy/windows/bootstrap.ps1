@@ -92,4 +92,4 @@ if (-not (Test-Path -LiteralPath $gpp -PathType Leaf) -or
 }
 
 Write-Host "Local toolchain is ready." -ForegroundColor Green
-Write-Host "The launcher will open the setup wizard next (administrator account, site name, port)."
+Write-Host "The launcher will open a setup page in the browser next (administrator account, site name, port)."

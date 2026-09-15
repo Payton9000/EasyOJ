@@ -123,8 +123,15 @@ def _is_this_checkout_listening(port: int) -> bool:
         except (OSError, psutil.Error):
             continue
         if root in blob:
+            if _cmdline_is_setup_server(blob):
+                continue
             return True
     return False
+
+
+def _cmdline_is_setup_server(blob: str) -> bool:
+    """The loopback setup page must not look like the classroom service."""
+    return 'setup_server.py' in blob.casefold().replace('/', '\\')
 
 
 def _run(command: list[str], *, timeout: int = 3600, env: dict[str, str] | None = None) -> int:
@@ -202,15 +209,15 @@ def _publish_listen_settings(port: int, site_name: str) -> None:
     os.environ['EASYOJ_SITE_NAME'] = site_name
 
 
-def ensure_configuration() -> bool:
+def ensure_configuration(*, open_browser: bool = True) -> bool:
     """Create data directories, .env (with a generated SECRET_KEY), and the database.
 
-    A brand-new installation runs the setup wizard first so the operator chooses
+    A brand-new installation opens a loopback setup page so the operator chooses
     the administrator account and port. Without it the password was generated,
     printed among thirty lines of problem-import output, and lost when the window
     closed - leaving no way to sign in.
     """
-    sys.path.insert(0, str(PROJECT_ROOT / 'scripts' / 'deploy' / 'windows'))
+    sys.path.insert(0, str(Path(__file__).resolve().parent / 'deploy' / 'windows'))
     try:
         from deploy_core import ensure_project_layout
         from deploy_core import generate_env_file
@@ -226,17 +233,18 @@ def ensure_configuration() -> bool:
         generate_env_file(PROJECT_ROOT)
         return True
 
-    sys.path.insert(0, str(PROJECT_ROOT / 'scripts'))
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
     try:
+        from setup_server import run_setup_server
         from setup_wizard import SetupCancelled
         from setup_wizard import apply_choices
-        from setup_wizard import run_wizard
     except ImportError as exc:
-        say(f'Could not load the setup wizard: {exc}')
+        say(f'Could not load the setup page: {exc}')
         return False
 
     try:
-        choices = run_wizard()
+        say('Opening the first-time setup page in your browser...')
+        choices = run_setup_server(open_browser=open_browser)
     except SetupCancelled:
         say('Setup was cancelled. Nothing has been changed.')
         return False
@@ -248,7 +256,7 @@ def ensure_configuration() -> bool:
     environment['EASYOJ_INITIAL_ADMIN_USERNAME'] = choices.admin_username
     environment['EASYOJ_INITIAL_ADMIN_EMAIL'] = choices.admin_email
     environment['EASYOJ_INITIAL_ADMIN_PASSWORD'] = choices.admin_password
-    # Typed and confirmed in the wizard just now, so no forced change is needed.
+    # Typed and confirmed on the setup page just now, so no forced change is needed.
     environment['EASYOJ_INITIAL_ADMIN_PASSWORD_CONFIRMED'] = '1'
     say()
     say(f'Setting up "{choices.site_name}" on port {choices.port}...')
@@ -475,7 +483,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if _needs_venv_reexec():
         return _reexec_under_venv(list(argv) if argv is not None else sys.argv[1:])
-    if not ensure_configuration():
+    if not ensure_configuration(open_browser=not args.no_browser):
         return 1
     port = _configured_port()
     if _port_in_use(port) and not _is_this_checkout_listening(port):

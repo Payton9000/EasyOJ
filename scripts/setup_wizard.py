@@ -1,25 +1,16 @@
-"""First-run setup wizard: collect the few decisions only the operator can make.
+"""First-run setup values: validate and persist port/site name into .env.
 
-Before this existed, first run generated a random administrator password, printed
-it among thirty lines of problem-import output, and the launcher window closed
-eight seconds later. That password is the only way into the system, so in practice
-it was lost and the installation was unusable.
-
-The wizard asks for an administrator account, the port, and the site name, then
-hands the values to the initializer. It is a Tkinter dialog when a desktop is
-available and falls back to console prompts otherwise, so it also works over a
-remote session.
+The operator-facing form lives in setup_server.py (loopback webpage). This
+module must not import Flask or app/__init__.py: system Python on the first
+double-click has neither.
 """
 
 from __future__ import annotations
 
-import argparse
 import importlib.util
-import json
 import os
 import socket
 import sys
-from dataclasses import asdict
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -48,14 +39,6 @@ DEFAULT_PORT = 5000
 DEFAULT_SITE_NAME = 'EasyOJ'
 DEFAULT_USERNAME = 'admin'
 DEFAULT_EMAIL = 'admin@oj.local'
-CONSOLE_SETUP_STEPS = (
-    'Administrator username',
-    'Administrator email',
-    'Site name shown to students',
-    'Port',
-    'Administrator password (at least 8 characters)',
-    'Type the password again',
-)
 
 
 @dataclass
@@ -68,7 +51,7 @@ class SetupChoices:
 
 
 class SetupCancelled(RuntimeError):
-    """The operator closed the wizard without finishing."""
+    """The operator closed the setup page without finishing."""
 
 
 def port_is_free(port: int) -> bool:
@@ -137,172 +120,6 @@ def validate_choices(choices: SetupChoices, confirm_password: str | None = None)
     return errors
 
 
-# --- console front end ------------------------------------------------------
-
-
-def _ask(prompt: str, default: str = '') -> str:
-    suffix = f' [{default}]' if default else ''
-    try:
-        answer = input(f'{prompt}{suffix}: ').strip()
-    except (EOFError, KeyboardInterrupt) as exc:
-        raise SetupCancelled('Setup was cancelled.') from exc
-    return answer or default
-
-
-def run_console(choices: SetupChoices) -> SetupChoices:
-    print()
-    print('=' * 60)
-    print('  EasyOJ first-time setup')
-    print('=' * 60)
-    print()
-    print('  Answer a few questions and EasyOJ will be ready to use.')
-    print('  Press Enter to accept the value in brackets.')
-    print('  Questions are asked in this order:')
-    for index, label in enumerate(CONSOLE_SETUP_STEPS, start=1):
-        print(f'    {index}. {label}')
-    print()
-
-    while True:
-        collected = SetupChoices(
-            admin_username=_ask('Administrator username', choices.admin_username),
-            admin_email=_ask('Administrator email', choices.admin_email),
-            site_name=_ask('Site name shown to students', choices.site_name),
-            port=_ask('Port', str(choices.port)),
-        )
-        password = _ask('Administrator password (at least 8 characters)')
-        confirm = _ask('Type the password again')
-        collected.admin_password = password
-
-        errors = validate_choices(collected, confirm_password=confirm)
-        if not errors:
-            return collected
-        print()
-        for message in errors:
-            print(f'  ! {message}')
-        print()
-
-
-# --- Tkinter front end ------------------------------------------------------
-
-
-def run_dialog(choices: SetupChoices) -> SetupChoices:
-    import tkinter as tk
-    from tkinter import messagebox
-
-    window = tk.Tk()
-    window.title('EasyOJ - First-time setup')
-    window.geometry('560x520')
-    window.minsize(520, 480)
-    window.resizable(False, False)
-
-    result: dict[str, SetupChoices] = {}
-
-    frame = tk.Frame(window, padx=24, pady=20)
-    frame.pack(fill='both', expand=True)
-    tk.Label(frame, text='Welcome to EasyOJ', font=('Segoe UI', 16, 'bold')).pack(anchor='w')
-    tk.Label(
-        frame,
-        text=(
-            'These settings are only needed once.\n'
-            'Keep the administrator password somewhere safe: it is how you sign in.'
-        ),
-        justify='left',
-        fg='#475467',
-    ).pack(anchor='w', pady=(4, 16))
-
-    fields = tk.Frame(frame)
-    fields.pack(fill='x')
-    entries: dict[str, tk.Entry] = {}
-
-    def add_row(row: int, label: str, key: str, default: str, *, secret: bool = False) -> None:
-        tk.Label(fields, text=label, anchor='w').grid(row=row, column=0, sticky='w', pady=6)
-        entry = tk.Entry(fields, width=34, show='*' if secret else '')
-        entry.insert(0, default)
-        entry.grid(row=row, column=1, sticky='we', padx=(12, 0), pady=6)
-        entries[key] = entry
-
-    fields.columnconfigure(1, weight=1)
-    add_row(0, 'Administrator username', 'admin_username', choices.admin_username)
-    add_row(1, 'Administrator email', 'admin_email', choices.admin_email)
-    add_row(2, 'Password (8+ characters)', 'admin_password', '', secret=True)
-    add_row(3, 'Repeat password', 'confirm_password', '', secret=True)
-    add_row(4, 'Site name', 'site_name', choices.site_name)
-    add_row(5, 'Port', 'port', str(choices.port))
-
-    hint = tk.Label(
-        frame,
-        text=(
-            'Students will open http://<this computer>:PORT from the classroom.\n'
-            'Leave the port unchanged unless another program already uses it.'
-        ),
-        justify='left',
-        fg='#667085',
-        font=('Segoe UI', 8),
-    )
-    hint.pack(anchor='w', pady=(12, 0))
-
-    error_label = tk.Label(frame, text='', fg='#b42318', justify='left', wraplength=500)
-    error_label.pack(anchor='w', pady=(12, 0))
-
-    def submit() -> None:
-        collected = SetupChoices(
-            admin_username=entries['admin_username'].get(),
-            admin_email=entries['admin_email'].get(),
-            admin_password=entries['admin_password'].get(),
-            site_name=entries['site_name'].get(),
-            port=entries['port'].get(),
-        )
-        errors = validate_choices(collected, confirm_password=entries['confirm_password'].get())
-        if errors:
-            error_label.configure(text='\n'.join(f'- {message}' for message in errors))
-            return
-        result['choices'] = collected
-        window.destroy()
-
-    def cancel() -> None:
-        if messagebox.askokcancel('Cancel setup', 'EasyOJ will not be set up. Close the wizard?'):
-            window.destroy()
-
-    buttons = tk.Frame(frame)
-    buttons.pack(fill='x', pady=(18, 0))
-    tk.Button(buttons, text='Finish setup', command=submit, width=16).pack(side='left')
-    tk.Button(buttons, text='Cancel', command=cancel, width=10).pack(side='right')
-
-    window.protocol('WM_DELETE_WINDOW', cancel)
-    entries['admin_password'].focus_set()
-    window.bind('<Return>', lambda _event: submit())
-    window.mainloop()
-
-    if 'choices' not in result:
-        raise SetupCancelled('Setup was cancelled.')
-    return result['choices']
-
-
-def _can_use_dialog() -> bool:
-    """Tk only helps when a person can see and answer the window.
-
-    A piped or SSH session with no TTY would otherwise open a dialog nobody can
-    complete, then sit there until the launcher times out.
-    """
-    try:
-        return bool(sys.stdin.isatty() and sys.stdout.isatty())
-    except Exception:
-        return False
-
-
-def run_wizard(*, prefer_dialog: bool = True) -> SetupChoices:
-    defaults = SetupChoices(port=suggest_port())
-    if prefer_dialog and _can_use_dialog():
-        try:
-            return run_dialog(defaults)
-        except SetupCancelled:
-            raise
-        except Exception:
-            # No desktop (remote session, no Tk): fall back to prompts.
-            pass
-    return run_console(defaults)
-
-
 def apply_choices(choices: SetupChoices) -> None:
     """Persist the port and site name into .env before initialization."""
     sys.path.insert(0, str(PROJECT_ROOT / 'scripts' / 'deploy' / 'windows'))
@@ -332,30 +149,3 @@ def apply_choices(choices: SetupChoices) -> None:
     env_path.write_text('\n'.join(updated) + '\n', encoding='utf-8', newline='\n')
     os.environ['EASYOJ_PORT'] = str(choices.port)
     os.environ['EASYOJ_SITE_NAME'] = choices.site_name
-
-
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description='EasyOJ first-time setup')
-    parser.add_argument('--console', action='store_true', help='use text prompts')
-    parser.add_argument('--emit-json', action='store_true', help='print the collected values')
-    args = parser.parse_args(argv)
-
-    try:
-        choices = run_wizard(prefer_dialog=not args.console)
-    except SetupCancelled as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
-
-    apply_choices(choices)
-    if args.emit_json:
-        payload = asdict(choices)
-        # The password travels to the initializer through the environment, never
-        # through argv (which is visible to other processes) or stdout.
-        payload.pop('admin_password', None)
-        print(json.dumps(payload))
-    os.environ['EASYOJ_INITIAL_ADMIN_PASSWORD'] = choices.admin_password
-    return 0
-
-
-if __name__ == '__main__':
-    raise SystemExit(main())

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="{{ locale }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ t('setup.title') }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}">
+</head>
+<body>
+<header class="site-header">
+    <div class="page-shell site-header-inner">
+        <span class="brand">EasyOJ</span>
+        <nav class="main-nav" aria-label="Setup">
+            <form class="locale-form" method="POST" action="{{ url_for('setup_language') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="locale-button" id="locale-toggle" type="submit" data-action="locale">{{ t('nav.language') }}</button>
+            </form>
+        </nav>
+    </div>
+</header>
+<main class="page-shell">
+    {% if errors %}
+        <div class="flash-messages" aria-live="polite">
+            {% for message in errors %}
+                <div class="flash error">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+    <section class="auth-card card">
+        <h1 class="page-title">{{ t('setup.heading') }}</h1>
+        <p class="form-help">{{ t('setup.intro') }}</p>
+        <form method="POST" action="{{ url_for('setup_page') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label for="username">{{ t('setup.username') }}</label>
+                <input type="text" id="username" name="username" autocomplete="username" required autofocus
+                       value="{{ values.username }}">
+            </div>
+            <div class="form-group">
+                <label for="email">{{ t('setup.email') }}</label>
+                <input type="email" id="email" name="email" autocomplete="email" required
+                       value="{{ values.email }}">
+            </div>
+            <div class="form-group">
+                <label for="site_name">{{ t('setup.site_name') }}</label>
+                <input type="text" id="site_name" name="site_name" maxlength="60" required
+                       value="{{ values.site_name }}">
+            </div>
+            <div class="form-group">
+                <label for="port">{{ t('setup.port') }}</label>
+                <input type="number" id="port" name="port" min="1024" max="65535" required
+                       value="{{ values.port }}">
+                <div class="form-help">{{ t('setup.port_help') }}</div>
+            </div>
+            <div class="form-group">
+                <label for="password">{{ t('setup.password') }}</label>
+                <input type="password" id="password" name="password" minlength="8" autocomplete="new-password" required>
+            </div>
+            <div class="form-group">
+                <label for="confirm_password">{{ t('setup.confirm_password') }}</label>
+                <input type="password" id="confirm_password" name="confirm_password" minlength="8" autocomplete="new-password" required>
+            </div>
+            <button class="btn btn-primary" id="setup-submit" type="submit" data-action="setup">{{ t('setup.submit') }}</button>
+        </form>
+    </section>
+</main>
+</body>
+</html>

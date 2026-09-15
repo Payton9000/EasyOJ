@@ -39,6 +39,8 @@ def test_run_server_captures_bounded_log_tail_on_startup_failure(tmp_path, monke
     python_path = tmp_path / '.venv' / 'Scripts' / 'python.exe'
     python_path.parent.mkdir(parents=True)
     python_path.write_bytes(b'python')
+    (tmp_path / 'data').mkdir()
+    (tmp_path / 'data' / 'database.db').write_bytes(b'sqlite')
     captured = {}
 
     class FakePipe:
@@ -110,7 +112,9 @@ def test_toolchain_script_requires_hash_verification_before_execution():
     assert 'function Measure-UrlProbe' in script
     assert 'function Rank-UrlCandidates' in script
     assert 'BytesPerSecond' in script
-    downloader = script.split('function Download-VerifiedFile', 1)[1].split('function Expand-Zip', 1)[0]
+    downloader = script.split('function Download-VerifiedFile', 1)[1].split(
+        'function Expand-Zip', 1
+    )[0]
     assert 'Rank-UrlCandidates' in downloader
     assert 'ghfast.top' in script
     assert 'ghproxy.cn' in script
@@ -122,7 +126,9 @@ def test_toolchain_script_requires_hash_verification_before_execution():
     assert 'function Invoke-ResumableCurl' in script
     assert '--retry-all-errors' in script
     assert 'kkgithub.com' in script
-    downloader = script.split('function Download-VerifiedFile', 1)[1].split('function Expand-Zip', 1)[0]
+    downloader = script.split('function Download-VerifiedFile', 1)[1].split(
+        'function Expand-Zip', 1
+    )[0]
     assert 'ConvertTo-UrlList' in downloader
     assert 'return ,$ranked' not in script
 

@@ -92,59 +92,19 @@ def test_suggest_port_avoids_a_busy_default(monkeypatch):
     assert setup_wizard.suggest_port(5000) == 5001
 
 
-def test_wizard_uses_console_when_stdin_is_not_a_tty(monkeypatch):
-    monkeypatch.setattr(setup_wizard.sys.stdin, 'isatty', lambda: False)
-    monkeypatch.setattr(setup_wizard.sys.stdout, 'isatty', lambda: True)
-    called = {}
-
-    def fake_dialog(_choices):
-        called['dialog'] = True
-        raise AssertionError('dialog must not open without a TTY')
-
-    def fake_console(choices):
-        called['console'] = True
-        return choices
-
-    monkeypatch.setattr(setup_wizard, 'run_dialog', fake_dialog)
-    monkeypatch.setattr(setup_wizard, 'run_console', fake_console)
-    setup_wizard.run_wizard()
-    assert called == {'console': True}
+def test_setup_wizard_has_no_tk_or_console_prompt_ui():
+    text = Path(setup_wizard.__file__).read_text(encoding='utf-8')
+    assert 'tkinter' not in text
+    assert 'run_console' not in text
+    assert 'run_dialog' not in text
+    assert 'CONSOLE_SETUP_STEPS' not in text
 
 
-def test_console_flow_accepts_answers(monkeypatch):
-    """Remote sessions without a desktop fall back to prompts."""
-    answers = iter(
-        ['teacher.li', 'li@school.example', 'Class 3 OJ', '5123', 'ClassRoom2026', 'ClassRoom2026']
-    )
-    monkeypatch.setattr('builtins.input', lambda _prompt='': next(answers))
-    monkeypatch.setattr(setup_wizard, 'port_is_free', lambda port: True)
-
-    result = setup_wizard.run_console(setup_wizard.SetupChoices())
-
-    assert result.admin_username == 'teacher.li'
-    assert result.admin_email == 'li@school.example'
-    assert result.admin_password == 'ClassRoom2026'
-    assert result.port == 5123
-    assert result.site_name == 'Class 3 OJ'
-
-
-def test_console_wizard_announces_the_six_questions_in_order(monkeypatch, capsys):
-    answers = iter(
-        ['teacher.li', 'li@school.example', 'Class 3 OJ', '5123', 'ClassRoom2026', 'ClassRoom2026']
-    )
-    monkeypatch.setattr('builtins.input', lambda _prompt='': next(answers))
-    monkeypatch.setattr(setup_wizard, 'port_is_free', lambda port: True)
-    setup_wizard.run_console(setup_wizard.SetupChoices())
-    output = capsys.readouterr().out
-    positions = [output.index(label) for label in setup_wizard.CONSOLE_SETUP_STEPS]
-    assert positions == sorted(positions)
-
-
-def test_readme_lists_wizard_questions_in_console_order():
+def test_readme_lists_setup_fields_in_form_order():
     chinese = (REPO_ROOT / 'README.md').read_text(encoding='utf-8')
     english = (REPO_ROOT / 'README_EN.md').read_text(encoding='utf-8')
     for text in (chinese, english):
-        assert 'Type the password again' in text or '再输入一次密码' in text
+        assert '启动 EasyOJ.bat' in text or 'Double-click' in text
         user = (
             text.index('管理员用户名')
             if '管理员用户名' in text
@@ -159,16 +119,7 @@ def test_readme_lists_wizard_questions_in_console_order():
             else text.index('Type the password again')
         )
         assert user < email < confirm
-
-
-def test_console_flow_cancels_cleanly(monkeypatch):
-    def interrupt(_prompt=''):
-        raise KeyboardInterrupt
-
-    monkeypatch.setattr('builtins.input', interrupt)
-
-    with pytest.raises(setup_wizard.SetupCancelled):
-        setup_wizard.run_console(setup_wizard.SetupChoices())
+        assert 'Initialize / repair' not in text
 
 
 def test_site_name_reaches_the_page_header():

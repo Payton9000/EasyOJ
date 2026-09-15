@@ -22,23 +22,22 @@ source (SHA-256 verified, then the next-fastest if a checksum fails), about 400 
 in total. A very slow link can take more than an hour; if the first run is
 interrupted, double-click the file again and it resumes the toolchain.
 
-A short setup window then asks for the things only you can decide, **in this
-order** (the no-desktop text prompts are the same; press Enter to keep a
-bracketed default):
+A short setup page then opens in your browser on this computer only
+(`127.0.0.1`). Fill in the fields **in this order**:
 
 | # | Setting | Notes |
 | --- | --- | --- |
 | 1 | Administrator username | How you sign in. Defaults to `admin`. |
 | 2 | Administrator email | Defaults to `admin@oj.local`. |
 | 3 | Site name | Shown in the header and page titles, e.g. a class or school name. |
-| 4 | Port | Defaults to 5000; the wizard suggests another if that one is taken. |
+| 4 | Port | Defaults to 5000; the page warns if that one is taken. |
 | 5 | Administrator password | At least 8 characters. Choose it yourself so it is never printed or lost. |
 | 6 | Type the password again | The two values must match. |
 
 Student usernames must be **3–32** characters: lowercase letters, numbers, `.`,
 `-`, or `_`.
 
-The wizard then creates the database and imports the built-in problem bank.
+The setup page then creates the database and imports the built-in problem bank.
 That import rewrites tracked files under `data/problems/`; leave those changes
 uncommitted. Later runs go straight to serving and print the classroom address.
 
@@ -48,7 +47,8 @@ Without a desktop session (for example over SSH), run this from the project fold
 py -3 scripts\launcher.py start
 ```
 
-The same questions are asked as text prompts. Everything is stored in `.env` and
+The console prints a loopback URL. Open it in a browser on that same machine.
+Do not forward the setup port onto the LAN. Everything is stored in `.env` and
 can be changed later by editing that file.
 
 The service keeps running after the window closes. Double-click
@@ -70,11 +70,9 @@ For auto-start, backups, and a notification-area icon:
 .\.venv\Scripts\python.exe scripts\deploy\windows\deploy_gui.py
 ```
 
-The same setup can be re-run from there with **Initialize / repair**. That path
-does not open the setup wizard; it prints a one-time temporary password for the
-`admin` account in the deployment log. Save it and change it at first login.
-First-run via **启动 EasyOJ.bat** uses the password you typed in the wizard and
-does not print a temporary password.
+Use **Repair toolchain** there only if compilers need to be downloaded again.
+That path does not create an administrator. First-run via **启动 EasyOJ.bat**
+opens the setup page in the browser so you choose the password yourself.
 
 Open `http://<host-ip>:5000` from the classroom network. Restrict the Windows
 Firewall rule to the school subnet; do not expose this profile to the public

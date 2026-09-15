@@ -70,10 +70,18 @@ def main() -> int:
         logger.info('Port %s already serving; not starting a second instance.', port)
         return 0
 
-    # The deployment assistant writes .env (including SECRET_KEY) during
-    # Initialize; production deliberately refuses to start without it.
+    # First-run writes .env from the loopback setup page; production refuses
+    # to start without it.
     if not (PROJECT_ROOT / '.env').is_file():
-        logger.error(".env is missing. Run the deployment assistant's Initialize step first.")
+        logger.error(
+            '.env is missing. Double-click 启动 EasyOJ.bat and finish setup in the browser.'
+        )
+        return 1
+
+    if not (PROJECT_ROOT / 'data' / 'database.db').is_file():
+        logger.error(
+            'The database is missing. Double-click 启动 EasyOJ.bat and finish setup in the browser.'
+        )
         return 1
 
     from dotenv import load_dotenv

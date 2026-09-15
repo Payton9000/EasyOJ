@@ -61,7 +61,7 @@ def launcher_command(root: Path) -> tuple[Path, Path]:
         interpreter = root / '.venv' / 'Scripts' / 'python.exe'
     script = root / LAUNCHER_RELATIVE
     if not interpreter.is_file():
-        raise RuntimeError('Project Python is missing. Run Initialize / repair first.')
+        raise RuntimeError('Project Python is missing. Double-click 启动 EasyOJ.bat first.')
     if not script.is_file():
         raise RuntimeError(f'Missing service launcher: {script}')
     return interpreter, script

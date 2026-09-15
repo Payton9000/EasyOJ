@@ -147,7 +147,7 @@ def test_start_does_not_treat_a_foreign_listener_as_this_install(monkeypatch):
         launcher, 'ensure_environment', lambda: called.setdefault('env', True) or True
     )
 
-    def fake_configuration():
+    def fake_configuration(**_kwargs):
         ports['value'] = 5001
         called['cfg'] = True
         return True
@@ -168,7 +168,7 @@ def test_start_does_not_treat_a_foreign_listener_as_this_install(monkeypatch):
 def test_start_reexecs_into_project_venv_before_the_wizard(tmp_path, monkeypatch):
     """The first double-click borrows system Python only long enough to create .venv.
 
-    Continuing in that interpreter cannot import Flask, so the wizard never opens.
+    Continuing in that interpreter cannot import Flask, so the setup page never opens.
     """
     venv_python = tmp_path / '.venv' / 'Scripts' / 'python.exe'
     venv_python.parent.mkdir(parents=True)
@@ -186,7 +186,7 @@ def test_start_reexecs_into_project_venv_before_the_wizard(tmp_path, monkeypatch
     monkeypatch.setattr(launcher.subprocess, 'call', fake_call)
 
     def must_not_configure():
-        raise AssertionError('system Python must not import the wizard')
+        raise AssertionError('system Python must not import the setup page')
 
     monkeypatch.setattr(launcher, 'ensure_configuration', must_not_configure)
 
@@ -218,7 +218,7 @@ def test_start_rereads_port_after_the_setup_wizard(monkeypatch):
     monkeypatch.setattr(launcher, '_is_this_checkout_listening', lambda port: False)
     monkeypatch.setattr(launcher, 'ensure_environment', lambda: True)
 
-    def fake_configuration():
+    def fake_configuration(**_kwargs):
         ports['value'] = 5001
         return True
 
@@ -248,6 +248,52 @@ def test_start_exits_when_this_checkout_is_already_listening(monkeypatch, capsys
 
     assert launcher.main(['start', '--no-browser']) == 0
     assert 'already running' in capsys.readouterr().out
+
+
+def test_ensure_configuration_uses_the_web_setup_page(tmp_path, monkeypatch):
+    monkeypatch.setattr(launcher, 'PROJECT_ROOT', tmp_path)
+    monkeypatch.setattr(launcher, 'VENV_PYTHON', tmp_path / 'python.exe')
+    (tmp_path / 'run.py').write_text('', encoding='utf-8')
+    (tmp_path / 'app').mkdir()
+    (tmp_path / 'data').mkdir()
+    captured = {}
+
+    def fake_web_setup(*, open_browser=True):
+        captured['open_browser'] = open_browser
+        from setup_wizard import SetupChoices
+
+        return SetupChoices(
+            admin_username='admin',
+            admin_email='admin@oj.local',
+            admin_password='webpass123',
+            port=5110,
+            site_name='WebSetup',
+        )
+
+    def fake_apply(choices):
+        captured['applied'] = choices
+
+    def fake_run(command, *, timeout=3600, env=None):
+        captured['init'] = command
+        captured['env'] = env
+        return 0
+
+    monkeypatch.setattr('setup_server.run_setup_server', fake_web_setup)
+    monkeypatch.setattr('setup_wizard.apply_choices', fake_apply)
+    monkeypatch.setattr(launcher, '_run', fake_run)
+    monkeypatch.setattr(launcher, 'say', lambda *args, **kwargs: None)
+
+    assert launcher.ensure_configuration() is True
+    assert captured['applied'].port == 5110
+    assert 'init_db.py' in str(captured['init'][-1])
+    assert captured['env']['EASYOJ_INITIAL_ADMIN_PASSWORD_CONFIRMED'] == '1'
+
+
+def test_setup_server_process_is_not_the_running_service():
+    assert launcher._cmdline_is_setup_server('python D:\\EasyOJ\\scripts\\setup_server.py')
+    assert not launcher._cmdline_is_setup_server(
+        'pythonw D:\\EasyOJ\\.venv\\Scripts\\pythonw.exe D:\\EasyOJ\\scripts\\start_service.py'
+    )
 
 
 def test_toolchain_script_next_step_uses_this_project_root():

@@ -139,7 +139,7 @@ def test_run_install_allows_slow_toolchain_download(project_root, monkeypatch):
 
     timeouts = [call['timeout'] for call in captured['calls'] if 'bootstrap.ps1' in _joined(call)]
     assert timeouts and timeouts[0] >= 10800
-    assert any('init_db.py' in _joined(call) for call in captured['calls'])
+    assert not any('init_db.py' in _joined(call) for call in captured['calls'])
 
 
 def test_bootstrap_script_does_not_create_the_database_before_the_wizard():
@@ -147,10 +147,25 @@ def test_bootstrap_script_does_not_create_the_database_before_the_wizard():
     assert 'init_db.py' not in script
 
 
+def test_run_server_refuses_to_start_before_the_database_exists(project_root, monkeypatch):
+    python_path = project_root / '.venv' / 'Scripts' / 'python.exe'
+    python_path.parent.mkdir(parents=True)
+    python_path.write_bytes(b'python')
+
+    def unexpected_popen(*args, **kwargs):
+        raise AssertionError('must not start Waitress before first-run setup')
+
+    monkeypatch.setattr('scripts.deploy.windows.deploy_gui.subprocess.Popen', unexpected_popen)
+    with pytest.raises(DeploymentError, match='启动 EasyOJ.bat'):
+        run_server(project_root, lambda message: None)
+
+
 def test_run_server_rejects_duplicate_port(project_root, monkeypatch):
     python_path = project_root / '.venv' / 'Scripts' / 'python.exe'
     python_path.parent.mkdir(parents=True)
     python_path.write_bytes(b'python')
+    (project_root / 'data').mkdir()
+    (project_root / 'data' / 'database.db').write_bytes(b'sqlite')
     monkeypatch.setattr('scripts.deploy.windows.deploy_gui._port_is_open', lambda port: True)
 
     def unexpected_popen(*args, **kwargs):
@@ -165,6 +180,8 @@ def test_run_server_waits_for_health_check(project_root, monkeypatch):
     python_path = project_root / '.venv' / 'Scripts' / 'python.exe'
     python_path.parent.mkdir(parents=True)
     python_path.write_bytes(b'python')
+    (project_root / 'data').mkdir()
+    (project_root / 'data' / 'database.db').write_bytes(b'sqlite')
     captured = {}
 
     class FakeProcess:

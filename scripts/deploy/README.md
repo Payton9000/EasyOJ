@@ -8,7 +8,7 @@
 .\.venv\Scripts\python.exe scripts/deploy/windows/deploy_gui.py
 ```
 
-第一次使用请选择 “Initialize / repair”。它会在项目目录内创建 `.venv`、生成 `.env`、安装 Python 依赖、下载 MinGW/JDK 到 `toolchain/` 并初始化数据库；不会修改系统 PATH，也不会把编译器安装到全局目录。工具链会先测速再从最快的官方源或国内镜像下载。若项目未自带 Python，可仅使用系统 Python 一次创建 `.venv`，之后运行时使用项目内解释器。
+第一次请双击根目录 **启动 EasyOJ.bat**，在浏览器里完成首次配置。部署助手里的 **Repair toolchain** 只补齐 `.venv` 和编译器，不会创建管理员账号；不会修改系统 PATH，也不会把编译器安装到全局目录。工具链会先测速再从最快的官方源或国内镜像下载。若项目未自带 Python，可仅使用系统 Python 一次创建 `.venv`，之后运行时使用项目内解释器。
 
 启动服务：
 

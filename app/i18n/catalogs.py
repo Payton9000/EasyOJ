@@ -878,4 +878,38 @@ _ZH_TRANSLATIONS.update(
         'admin.unlimited': '不限制',
     }
 )
+CATALOGS['en'].update(
+    {
+        'setup.title': 'EasyOJ setup',
+        'setup.heading': 'First-time setup',
+        'setup.intro': 'These settings are only needed once. Keep the administrator password somewhere safe.',
+        'setup.username': 'Administrator username',
+        'setup.email': 'Administrator email',
+        'setup.site_name': 'Site name shown to students',
+        'setup.port': 'Port',
+        'setup.port_help': 'Students open http://this-computer:PORT. Leave 5000 unless another program already uses it.',
+        'setup.password': 'Administrator password (at least 8 characters)',
+        'setup.confirm_password': 'Type the password again',
+        'setup.submit': 'Finish setup',
+        'setup.done_title': 'Setup saved',
+        'setup.done_body': 'You can close this tab. EasyOJ is creating the database and will open the site next.',
+    }
+)
+_ZH_TRANSLATIONS.update(
+    {
+        'setup.title': 'EasyOJ 初始配置',
+        'setup.heading': '首次配置',
+        'setup.intro': '这些设置只需填写一次。请把管理员密码保存在安全的地方。',
+        'setup.username': '管理员用户名',
+        'setup.email': '管理员邮箱',
+        'setup.site_name': '显示给学生的站点名称',
+        'setup.port': '端口',
+        'setup.port_help': '学生访问 http://本机:端口。若 5000 已被占用，请改用向导建议的端口。',
+        'setup.password': '管理员密码（至少 8 个字符）',
+        'setup.confirm_password': '再输入一次密码',
+        'setup.submit': '完成配置',
+        'setup.done_title': '配置已保存',
+        'setup.done_body': '可以关闭此标签页。EasyOJ 正在创建数据库，随后会打开站点。',
+    }
+)
 CATALOGS['zh-CN'].update(_ZH_TRANSLATIONS)
